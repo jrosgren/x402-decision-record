@@ -1,0 +1,45 @@
+{
+  "_note": "EXAMPLE DATA ONLY. Illustrative format of a signed pre-payment decision record with optional extensions. No real agent, payer or payee. Values are made up.",
+  "input": {
+    "url": "https://api.example-seller.test/v1/report",
+    "payTo": "0x0000000000000000000000000000000000000002",
+    "network": "eip155:8453"
+  },
+  "verdict": "warn",
+  "score": 62,
+  "level": "medium",
+  "reasons": [
+    "Payee wallet first seen less than 7 days ago",
+    "Price is above the listed price for this resource"
+  ],
+  "reason_codes": ["PAYEE_NEW", "PRICE_ABOVE_LISTING"],
+  "evidence": {
+    "liveness": {"result": "pass", "detail": "Resource answered with HTTP 402 and valid payment requirements"},
+    "price_vs_listing": {"result": "warn", "detail": "Requested 4.50 USDC; listed price 3.00 USDC"},
+    "payto_change": {"result": "pass", "detail": "payTo unchanged since first seen"},
+    "schema": {"result": "pass", "detail": "x402 payment requirements match the expected schema"},
+    "payee_wallet_risk": {"result": "warn", "detail": "Wallet age under 7 days; no OFAC SDN match", "ofac_match": false}
+  },
+  "checkedAt": "2026-11-02T09:00:00Z",
+  "agenttrust_ext": {
+    "_note": "Optional extensions on top of the core decision-record fields (example only).",
+    "record_id": "at_dr_2026-11-02_000001",
+    "schema_version": "0.2-draft",
+    "payer_agent_id": "agent:example-buyer-01",
+    "payer_wallet": "0x0000000000000000000000000000000000000001",
+    "asset": "USDC",
+    "amount": "4.50",
+    "policy_id": "policy:default-v1",
+    "outcome": {
+      "status": "pending",
+      "linked_events": [],
+      "_note": "Filled in later, e.g. settled, refunded, disputed, with timestamps and source."
+    },
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "example-signing-key",
+      "signed_fields_hash": "sha256:EXAMPLE",
+      "sig": "EXAMPLE_SIGNATURE"
+    }
+  }
+}
