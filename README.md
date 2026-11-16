@@ -21,6 +21,7 @@ This is a question, not a finished proposal: would a shared format be useful, or
 
 - [`sample-decision-record.json`](./sample-decision-record.json) — an example record (example data only)
 - [`sample-decision-record-fields.md`](./sample-decision-record-fields.md) — field guide
+- [`verifier/`](./verifier/) — a standalone third-party check: open [`verifier/verify.html`](./verifier/verify.html) in a browser (no network calls; nothing leaves the device), or use `verifier/verify.py` / OpenSSL. Includes a valid signed example and a tampered copy (score 62→30, original signature kept) so you can see a pass and a fail. Demo key id: `polkulab-demo-2026-11`.
 
 ## License
 
