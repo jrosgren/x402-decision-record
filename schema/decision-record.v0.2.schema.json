@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v0.2.schema.json",
+  "title": "x402 pre-payment decision record, legacy v0.2-draft (closed)",
+  "description": "LEGACY. Closed schema for 0.2-draft records, used by the reference verifiers only when legacy verification is explicitly enabled (SPEC §11.1). Any v1.0 member makes the record INVALID (LEGACY_V02_WITH_V1_FIELDS), so v1.0 content cannot be relabelled 0.2-draft to skip the v1.0 checks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "schema_version",
+    "checkedAt",
+    "signature"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "0.2-draft"
+    },
+    "example_data": {
+      "type": "boolean"
+    },
+    "input": {
+      "type": "object"
+    },
+    "verdict": {
+      "enum": [
+        "allow",
+        "warn",
+        "deny"
+      ]
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "level": {
+      "type": "string"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "checkedAt": {
+      "$ref": "#/$defs/timestamp",
+      "description": "Issuance time of a v0.2 record; checked against the key's validity window."
+    },
+    "payer_agent_id": {
+      "type": "string"
+    },
+    "payer_wallet": {
+      "type": "string"
+    },
+    "asset": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "string"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "object"
+    },
+    "signature": {
+      "type": "object",
+      "x-error-code": "BAD_SIGNATURE_OBJECT",
+      "additionalProperties": false,
+      "required": [
+        "alg",
+        "key_id",
+        "sig_base64"
+      ],
+      "properties": {
+        "alg": {
+          "const": "Ed25519"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonicalization": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "sig_base64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$",
+          "x-error-code": "NONCANONICAL_SIGNATURE"
+        }
+      }
+    },
+    "record_type": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "issuer": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "signing_key": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "payment": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "timeline": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "checks": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "decision": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "field_evidence_ceilings": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "links": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    },
+    "not_covered": {
+      "not": {},
+      "x-error-code": "LEGACY_V02_WITH_V1_FIELDS",
+      "description": "v1.0 member: not allowed in a 0.2-draft record."
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$",
+      "x-error-code": "BAD_TIMESTAMP",
+      "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."
+    }
+  }
+}

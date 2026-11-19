@@ -52,6 +52,8 @@ The `signature` object (changed in v1.0):
 - Verifiers MUST reject a signature whose `S` (last 32 bytes, little-endian) is not below the group order `L` (RFC 8032 §5.1.7) → INVALID (`BAD_SIGNATURE`). This applies on every code path, including fallback libraries that skip the check (for example tweetnacl).
 - `signature.key_id` MUST equal `signing_key.key_id` (`KEY_ID_MISMATCH`). The copy inside the signed body stops key-id substitution.
 
+Duplicate members: a record or keyset MUST NOT contain the same member name twice in one object (RFC 8259 leaves the result undefined, and parsers differ on which value wins). Verifiers MUST check the text before or while parsing and report INVALID (`DUPLICATE_MEMBER:<pointer>`; in a keyset, `DUPLICATE_MEMBER:keyset#<pointer>`). Text that is not JSON (including `NaN` or `Infinity`) → INVALID (`BAD_JSON`).
+
 Numbers: a record MUST NOT contain a number with a fraction or exponent part (`62.0`, `1e3`) anywhere, including inside `evidence`, and every integer MUST be within ±(2^53−1) (as in I-JSON, RFC 7493). Otherwise → INVALID (`BAD_NUMBER:<pointer>`). Amounts are decimal strings in atomic units; scores are integers. This keeps JCS identical across languages.
 
 Timestamps: every timestamp in a record or keyset MUST match `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{3})?Z$` (UTC, `Z`, whole seconds or exactly three decimals) and be a real calendar time (no leap second). Otherwise → INVALID (`BAD_TIMESTAMP:<pointer>`). Verifiers compare timestamps at millisecond precision.
@@ -75,7 +77,7 @@ Timestamps: every timestamp in a record or keyset MUST match `^[0-9]{4}-[0-9]{2}
 
 **x402 v1.** x402 v1 requirements (`maxAmountRequired`, network names such as `base`, `resource` inside the requirements) MUST be mapped to v2 before a record is issued: `maxAmountRequired` → `amount`, `base` → `eip155:8453`, the resource URL → `PaymentRequired.resource.url`. The hash then covers the v2 object. A verifier given v1-form requirements as binding inputs reports `UNSUPPORTED_X402_V1_REQUIREMENTS`.
 
-**Networks.** v1.0 covers **EVM chains only**, with Base (`eip155:8453`) as the primary target. `network` MUST be a CAIP-2 id of the form `eip155:<chain id>`, and verifiers MUST reject any other value (`UNSUPPORTED_NETWORK`). The nonce input id `eip3009-nonce-bytes32` is EVM-specific. Solana and other non-EVM schemes are deferred to v1.1, which will add scheme-specific nonce input ids. *(Resolved, Ella 19.11.)*
+**Networks.** v1.0 covers **EVM chains only**, with Base (`eip155:8453`) as the primary target. `network` MUST be a CAIP-2 id of the form `eip155:<chain id>`, where the chain id is a positive decimal integer without leading zeros (pattern `^eip155:[1-9][0-9]*$`; so `eip155:08453` and `eip155:0` are rejected), and verifiers MUST reject any other value (`UNSUPPORTED_NETWORK`). The nonce input id `eip3009-nonce-bytes32` is EVM-specific. Solana and other non-EVM schemes are deferred to v1.1, which will add scheme-specific nonce input ids. *(Resolved, Ella 19.11.)*
 
 **Recomputing the binding.** A verifier that holds the raw inputs (see [`test-vectors/v1.0/binding-inputs.json`](./test-vectors/v1.0/binding-inputs.json): the nonce, the selected `PaymentRequirements`, optionally the `resource` object, and the request) MUST:
 
@@ -217,7 +219,7 @@ Readers MUST NOT infer coverage of anything listed there.
 
 ## 11. Verification procedure
 
-0. **Parse and validate.** Dispatch on the exact `schema_version`: `"1.0"` → these rules; `"0.2-draft"` → legacy v0.2 rules (signature only); anything else, including `"0.3-draft"` (a review draft that was never issued) and `"1.0.0"`, → INVALID (`UNSUPPORTED_SCHEMA_VERSION`). No prefix matching. Then check numbers (§3, `BAD_NUMBER`), **validate the record against the JSON Schema for its version** (`SCHEMA_VIOLATION:<pointer>`, or the code the schema names in `x-error-code`, such as `BAD_SIGNATURE_OBJECT`, `NONCANONICAL_SIGNATURE`, `BAD_TIMESTAMP` or `UNSUPPORTED_NETWORK`), and check that every timestamp is a real time (§3). Any error here → INVALID, and the verifier stops.
+0. **Parse and validate.** Check the text for duplicate members and numbers (§3: `DUPLICATE_MEMBER`, then `BAD_NUMBER`; `BAD_JSON` if it does not parse). Dispatch on the exact `schema_version`: `"1.0"` → these rules; `"0.2-draft"` → the legacy rules of §11.1, only if legacy verification is explicitly enabled (otherwise INVALID, `LEGACY_V02_NOT_ENABLED`); anything else, including `"0.3-draft"` (a review draft that was never issued) and `"1.0.0"`, → INVALID (`UNSUPPORTED_SCHEMA_VERSION`). No prefix matching. Then **validate the record against the JSON Schema for its version** (`SCHEMA_VIOLATION:<pointer>`, or the code the schema names in `x-error-code`, such as `BAD_SIGNATURE_OBJECT`, `NONCANONICAL_SIGNATURE`, `BAD_TIMESTAMP` or `UNSUPPORTED_NETWORK`), and check that every timestamp is a real time (§3). Any error here → INVALID, and the verifier stops.
 1. **Key:** validate the keyset (ideally checked against the release anchor) and apply §9.3.
 2. **Signature:** check it over the JCS bytes of the record without `signature`, with the strict rules of §3.
 3. **Checks:** recompute each inline evidence hash (§6.1); report unknown check ids as info and never reject because of one (§6.2); check that every `field_evidence_ceilings` pointer resolves (§8).
@@ -232,7 +234,15 @@ Reference verifiers:
 - [`verifier/verify.py`](./verifier/verify.py): CLI, offline. Requires `rfc8785`.
 - [`verifier/verify.html`](./verifier/verify.html): single file, no network calls, schemas embedded. Hosted copy: https://jrosgren.github.io/x402-decision-record/verifier/verify.html
 
-Both verifiers still verify v0.2 records.
+### 11.1 Legacy 0.2-draft records
+
+v0.2 records carry no payment binding, timeline or evidence hashes, so a VALID v0.2 result only says "this issuer key signed these bytes". Verifiers MUST NOT apply these rules unless the caller opts in (`verify.py --allow-legacy-v02`, `allowLegacyV02: true` in `verify.html`'s API, the "Also accept legacy 0.2-draft records" box on the page). When enabled:
+
+1. **Closed v0.2 schema.** Validate against [`schema/decision-record.v0.2.schema.json`](./schema/decision-record.v0.2.schema.json) (`additionalProperties: false`, `checkedAt` required and a real timestamp). Any v1.0 member (`record_type`, `issuer`, `signing_key`, `payment`, `timeline`, `checks`, `decision`, `field_evidence_ceilings`, `links`, `not_covered`) → INVALID (`LEGACY_V02_WITH_V1_FIELDS:<pointer>`). This stops v1.0 content from being relabelled `0.2-draft` to skip the v1.0 checks.
+2. **Key, with a keyset** (the normal case): validate the keyset as in §9.3; an unknown `key_id` → INVALID (`UNKNOWN_KEY`), **never** a fallback to the demo key; `checkedAt` outside `[valid_from, valid_until)` → INVALID (`KEY_NOT_VALID_AT_ISSUANCE`); a revoked key → INVALID (`KEY_REVOKED`) whatever `revocation_reason` says, because `checkedAt` is not bound to a payment and cannot be trusted as an issuance time.
+3. **Key, without a keyset:** a public key given explicitly is used as is, with the warning `NO_KEYSET_VALIDITY_NOT_CHECKED`. With neither a keyset nor a key, the verifiers use the demo key and add the warning `DEMO_KEY_ASSUMED`.
+4. **Signature** over the JCS bytes without `signature`, with the strict rules of §3. A v0.2 `signature.sha256` that does not match is a warning (`EMBEDDED_SHA256_MISMATCH`).
+5. Every VALID legacy result carries the warning `LEGACY_V02_SIGNATURE_ONLY`.
 
 [`test-vectors/v1.0/expected.json`](./test-vectors/v1.0/expected.json) lists every vector with its expected status, errors and warnings, positive and negative. Third-party verifiers SHOULD pass the same list.
 
@@ -253,6 +263,13 @@ Both verifiers still verify v0.2 records.
 - **Verifier parity** (B4): `verify.html` has the anchor check and linked-record recomputation.
 - **Field pointers** (review K1): `field_evidence_ceilings` keys must resolve (`UNRESOLVED_POINTER`). Keyset top level is closed and windows are checked (`BAD_KEY_WINDOW`).
 - Test vectors moved from `test-vectors/v0.3/` to `test-vectors/v1.0/`, schemas renamed to `*.v1.0.schema.json`.
+
+Follow-up review of `dcedfb5` (19.11):
+
+- **Legacy path closed** (MUST): 0.2-draft is opt-in (`LEGACY_V02_NOT_ENABLED`), validated against a closed v0.2 schema (`LEGACY_V02_WITH_V1_FIELDS`), uses the keyset rules without any demo-key fallback (`UNKNOWN_KEY`), treats every revocation as `KEY_REVOKED`, checks `checkedAt` against the key window, and marks every VALID result `LEGACY_V02_SIGNATURE_ONLY` (§11.1). Negative vectors for the three reported cases are in `expected.json`.
+- **Duplicate members** (SHOULD): `DUPLICATE_MEMBER:<pointer>` for records and keysets (§3).
+- **Browser number check fails closed** (SHOULD): `verify.html` scans the JSON text itself instead of relying on `JSON.parse` source-text access, so `62.0` is rejected in every browser.
+- **CAIP-2 chain id** (SHOULD): `^eip155:[1-9][0-9]*$` (§4).
 
 ### 12.2 Changes vs v0.2-draft
 

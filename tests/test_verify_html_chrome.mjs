@@ -35,6 +35,7 @@ const harness = `<script>
         if (x.c.keyset_sha256) o.keysetSha256 = x.c.keyset_sha256;
         if (x.binding) o.bindingInputs = x.binding;
         if (x.linked) o.linked = x.linked;
+        if (x.c.allow_legacy_v02) o.allowLegacyV02 = true;
         const r = await AgentTrustVerifier.verifyRecord(x.record, o);
         if (!mode.forceTweetnacl && r.method !== 'none') out.webcrypto = out.webcrypto || r.method;
         const ok = r.status === x.c.status && same(r.errors, x.c.errors) && same(r.warnings, x.c.warnings) &&
@@ -50,6 +51,7 @@ const harness = `<script>
       const got = ($('result-status') || {}).textContent;
       out.ui.push({ name, ok: got === want, got, detail: $('result').textContent });
     }
+    await ui('page default record (v1.0 valid)', () => {}, 'VALID');
     await ui('v1.0 valid button + anchor', () => { $('load-v10-valid').click(); $('anchor').value = D.anchor; }, 'VALID');
     await ui('v1.0 valid, wrong anchor', () => { $('load-v10-valid').click(); $('anchor').value = '00'.repeat(32); }, 'INVALID');
     await ui('v1.0 tampered button', () => { $('load-v10-tampered').click(); $('anchor').value = ''; }, 'INVALID');
@@ -58,6 +60,9 @@ const harness = `<script>
     await ui('pasted non-canonical signature', () => { $('load-v10-valid').click(); $('record').value = D.noncanon; }, 'INVALID');
     await ui('v0.2 valid button', () => { $('load-valid').click(); $('binding').value = ''; $('linked').value = ''; }, 'VALID');
     await ui('v0.2 tampered button', () => { $('load-tampered').click(); }, 'INVALID');
+    await ui('v0.2 valid without the legacy box', () => { $('load-valid').click(); $('allow-legacy').checked = false; }, 'INVALID');
+    await ui('v0.2 legacy result says signature only', () => { $('load-valid').click(); }, 'VALID');
+    out.ui.push({ name: 'v0.2 legacy warnings shown', ok: /LEGACY_V02_SIGNATURE_ONLY/.test(($('result-warnings') || {}).textContent || ''), got: $('result').textContent });
   } catch (e) { out.error = String(e && e.stack || e); }
   const pre = document.createElement('pre'); pre.id = 'harness-out';
   pre.textContent = 'HARNESS:' + JSON.stringify(out) + ':END';

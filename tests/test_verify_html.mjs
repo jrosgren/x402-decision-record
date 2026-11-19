@@ -40,6 +40,7 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
     if (c.keyset_sha256) opts.keysetSha256 = c.keyset_sha256;
     if (c.binding_inputs) opts.bindingInputs = load(tv + c.binding_inputs);
     if (c.linked) opts.linked = c.linked.map(p => load(tv + p));
+    if (c.allow_legacy_v02) opts.allowLegacyV02 = true;
     const r = await V.verifyRecord(text(tv + c.record), opts);
     const ok = r.status === c.status && same(r.errors, c.errors) && same(r.warnings, c.warnings) &&
       (c.info_includes || []).every(i => r.info.includes(i)) && (!c.sha256 || r.sha256 === c.sha256);
@@ -51,8 +52,28 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
   check(tag + ' embedded v1.0 valid, anchor, binding and links', r.status === 'VALID' && r.info.includes('BINDING_RECOMPUTED_OK') &&
     r.info.includes('LINK_RECOMPUTED_OK:seller_attestation'), r);
   // legacy call signature verifyRecord(record, pem, options)
-  const r2 = await V.verifyRecord(text('verifier/record-valid.json'), text('verifier/demo-pub.pem'), mode);
-  check(tag + ' v0.2 legacy call signature', r2.status === 'VALID', r2);
+  const r2 = await V.verifyRecord(text('verifier/record-valid.json'), text('verifier/demo-pub.pem'), Object.assign({ allowLegacyV02: true }, mode));
+  check(tag + ' v0.2 legacy call signature (pem, no keyset)', r2.status === 'VALID' &&
+    same(r2.warnings, ['LEGACY_V02_SIGNATURE_ONLY', 'NO_KEYSET_VALIDITY_NOT_CHECKED']), r2);
+}
+
+// S2: number checks do not depend on JSON.parse source-text access (fail closed without ctx.source)
+{
+  const orig = JSON.parse;
+  JSON.parse = function (t, rev) { return orig(t, rev ? function (k, v) { return rev.call(this, k, v); } : undefined); };
+  try {
+    const r = await V.verifyRecord(text(tv + 'negative/number-float.json'), { keysetText: text(tv + 'keyset-demo.json') });
+    check('62.0 rejected without ctx.source', r.status === 'INVALID' && same(r.errors, ['BAD_NUMBER:/decision/score']), r);
+  } finally { JSON.parse = orig; }
+}
+// scanner unit checks (same results as verify.scan_json)
+{
+  const s = V.scanJson('{"a":{"b":1,"b":2},"c":[1.5,{"d":1e3}],"e~/f":1,"e~/f":9007199254740992}');
+  check('scanJson pointers', JSON.stringify(s) === JSON.stringify({ dups: ['DUPLICATE_MEMBER:/a/b', 'DUPLICATE_MEMBER:/e~0~1f'],
+    bad: ['BAD_NUMBER:/c/0', 'BAD_NUMBER:/c/1/d', 'BAD_NUMBER:/e~0~1f'] }), s);
+  let threw = 0;
+  for (const t of ['{"a":1,}', '{"a":1} x', 'NaN', '{"a":01}', '[1,]']) { try { V.scanJson(t); } catch (e) { threw++; } }
+  check('scanJson rejects non-JSON', threw === 5, threw);
 }
 
 // jcs(record): link hash over the whole decision record incl. signature

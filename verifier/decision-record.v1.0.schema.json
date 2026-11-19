@@ -28,7 +28,7 @@
       "properties": {
         "x402_version": {"const": 2, "description": "v1.0 binds to x402 protocol v2 PaymentRequirements. x402 v1 requirements must be mapped to v2 first (SPEC §4)."},
         "scheme": {"type": "string", "minLength": 1},
-        "network": {"type": "string", "pattern": "^eip155:[0-9]+$", "x-error-code": "UNSUPPORTED_NETWORK", "description": "CAIP-2 chain id. v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."},
+        "network": {"type": "string", "pattern": "^eip155:[1-9][0-9]*$", "x-error-code": "UNSUPPORTED_NETWORK", "description": "CAIP-2 chain id. v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."},
         "asset": {"type": "string", "minLength": 1},
         "asset_symbol": {"type": "string"},
         "asset_decimals": {"type": "integer", "minimum": 0, "maximum": 255},

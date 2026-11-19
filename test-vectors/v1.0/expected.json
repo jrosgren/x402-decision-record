@@ -1,5 +1,5 @@
 {
-  "_note": "Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no keyset; keyset_sha256 is checked against the exact bytes of the keyset file. Records are passed to the verifiers as file text.",
+  "_note": "Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). Records and keysets are passed to the verifiers as file text.",
   "keyset_anchor_sha256": "958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745",
   "cases": [
     {
@@ -533,18 +533,72 @@
       ]
     },
     {
+      "name": "S1 duplicate member in record",
+      "record": "negative/duplicate-member.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:/decision/score"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "S1 duplicate member in keyset",
+      "record": "valid.json",
+      "keyset": "negative/keyset-duplicate-member.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:keyset#/keys/0/status"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "S3 network with leading zero",
+      "record": "negative/network-leading-zero.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_NETWORK:/payment/network"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "S3 network eip155:0",
+      "record": "negative/network-zero.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_NETWORK:/payment/network"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2 not enabled",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_NOT_ENABLED"
+      ],
+      "warnings": []
+    },
+    {
       "name": "legacy v0.2 valid",
       "record": "../../verifier/record-valid.json",
       "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
       "sha256": "f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0",
       "status": "VALID",
       "errors": [],
-      "warnings": []
+      "warnings": [
+        "LEGACY_V02_SIGNATURE_ONLY"
+      ]
     },
     {
       "name": "legacy v0.2 tampered",
       "record": "../../verifier/record-tampered.json",
       "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
       "status": "INVALID",
       "errors": [
         "BAD_SIGNATURE"
@@ -552,6 +606,127 @@
       "warnings": [
         "EMBEDDED_SHA256_MISMATCH"
       ]
+    },
+    {
+      "name": "legacy v0.2, no keyset and no key: demo key assumed",
+      "record": "../../verifier/record-valid.json",
+      "keyset": null,
+      "allow_legacy_v02": true,
+      "status": "VALID",
+      "errors": [],
+      "warnings": [
+        "DEMO_KEY_ASSUMED",
+        "LEGACY_V02_SIGNATURE_ONLY"
+      ]
+    },
+    {
+      "name": "Ella 1: v1.0 fields labelled 0.2-draft, key revoked (key_compromise)",
+      "record": "negative/legacy-v1-fields-relabelled.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_WITH_V1_FIELDS:/checks",
+        "LEGACY_V02_WITH_V1_FIELDS:/decision",
+        "LEGACY_V02_WITH_V1_FIELDS:/field_evidence_ceilings",
+        "LEGACY_V02_WITH_V1_FIELDS:/issuer",
+        "LEGACY_V02_WITH_V1_FIELDS:/links",
+        "LEGACY_V02_WITH_V1_FIELDS:/not_covered",
+        "LEGACY_V02_WITH_V1_FIELDS:/payment",
+        "LEGACY_V02_WITH_V1_FIELDS:/record_type",
+        "LEGACY_V02_WITH_V1_FIELDS:/signing_key",
+        "LEGACY_V02_WITH_V1_FIELDS:/timeline",
+        "SCHEMA_VIOLATION:/checkedAt"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Ella 2: v1.0 fields labelled 0.2-draft, issued 2030",
+      "record": "negative/legacy-v1-fields-relabelled-2030.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_WITH_V1_FIELDS:/checks",
+        "LEGACY_V02_WITH_V1_FIELDS:/decision",
+        "LEGACY_V02_WITH_V1_FIELDS:/field_evidence_ceilings",
+        "LEGACY_V02_WITH_V1_FIELDS:/issuer",
+        "LEGACY_V02_WITH_V1_FIELDS:/links",
+        "LEGACY_V02_WITH_V1_FIELDS:/not_covered",
+        "LEGACY_V02_WITH_V1_FIELDS:/payment",
+        "LEGACY_V02_WITH_V1_FIELDS:/record_type",
+        "LEGACY_V02_WITH_V1_FIELDS:/signing_key",
+        "LEGACY_V02_WITH_V1_FIELDS:/timeline",
+        "SCHEMA_VIOLATION:/checkedAt"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Ella 3: demo-signed v0.2 against a production-like keyset",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-production-like.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "UNKNOWN_KEY"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, key revoked for key_compromise",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, key superseded: always revoked on the legacy path",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-superseded-later.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, checkedAt after the key's valid_until",
+      "record": "negative/legacy-v02-checked-2030.json",
+      "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_NOT_VALID_AT_ISSUANCE"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, checkedAt 2030 and key revoked",
+      "record": "negative/legacy-v02-checked-2030.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_NOT_VALID_AT_ISSUANCE",
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2 with one v1.0 member",
+      "record": "negative/legacy-v02-with-payment.json",
+      "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_WITH_V1_FIELDS:/payment"
+      ],
+      "warnings": []
     }
   ]
 }

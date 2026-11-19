@@ -36,7 +36,9 @@ def run_case(c):
         kw["binding_inputs"] = load(TV / c["binding_inputs"])
     if c.get("linked"):
         kw["linked"] = [load(TV / p) for p in c["linked"]]
-    return verify.verify_record(load(TV / c["record"]), **kw)
+    kw["allow_legacy_v02"] = bool(c.get("allow_legacy_v02"))
+    # records are passed as file text, so duplicate members and number spelling are checked exactly
+    return verify.verify_record((TV / c["record"]).read_text(encoding="utf-8"), **kw)
 
 
 class ExpectedCases(unittest.TestCase):
@@ -65,20 +67,23 @@ class Schema(unittest.TestCase):
     """The verifiers' built-in validator must agree with a full JSON Schema implementation."""
 
     def test_schemas_are_valid_2020_12(self):
-        for s in ("decision-record.v1.0.schema.json", "keyset.v1.0.schema.json"):
+        for s in ("decision-record.v1.0.schema.json", "decision-record.v0.2.schema.json", "keyset.v1.0.schema.json"):
             jsonschema.Draft202012Validator.check_schema(load(ROOT / "schema" / s))
             self.assertEqual((ROOT / "schema" / s).read_bytes(), (ROOT / "verifier" / s).read_bytes())
 
     def test_builtin_validator_agrees_with_jsonschema(self):
         rv = jsonschema.Draft202012Validator(verify.RECORD_SCHEMA)
         kv = jsonschema.Draft202012Validator(verify.KEYSET_SCHEMA)
+        lv = jsonschema.Draft202012Validator(verify.V02_SCHEMA)
         n = 0
-        for p in sorted(TV.rglob("*.json")):
+        for p in sorted(TV.rglob("*.json")) + sorted((ROOT / "verifier").glob("record-*.json")):
             doc = load(p)
             if not isinstance(doc, dict) or verify.number_errors(doc):
                 continue
             if "keyset_version" in doc:
                 mine, full = verify.schema_errors(verify.KEYSET_SCHEMA, verify.KEYSET_SCHEMA, doc), kv.is_valid(doc)
+            elif doc.get("schema_version") == "0.2-draft":
+                mine, full = verify.schema_errors(verify.V02_SCHEMA, verify.V02_SCHEMA, doc), lv.is_valid(doc)
             elif doc.get("record_type") == "x402-pre-payment-decision":
                 mine, full = verify.schema_errors(verify.RECORD_SCHEMA, verify.RECORD_SCHEMA, doc), rv.is_valid(doc)
             else:
@@ -116,6 +121,14 @@ class Primitives(unittest.TestCase):
         raw = verify.decode_sig(load(TV / "negative/sig-s-plus-l.json")["signature"]["sig_base64"])
         self.assertGreaterEqual(int.from_bytes(raw[32:], "little"), verify.ED25519_L)
 
+    def test_scan_json(self):
+        d, b = verify.scan_json('{"a":{"b":1,"b":2},"c":[1.5,{"d":1e3}],"e~/f":1,"e~/f":9007199254740992}')
+        self.assertEqual(d, ["DUPLICATE_MEMBER:/a/b", "DUPLICATE_MEMBER:/e~0~1f"])
+        self.assertEqual(b, ["BAD_NUMBER:/c/0", "BAD_NUMBER:/c/1/d", "BAD_NUMBER:/e~0~1f"])
+        for t in ('{"a":1,}', '{"a":1} x', "NaN", '{"a":01}', "[1,]"):
+            self.assertRaises(ValueError, verify.scan_json, t)
+        self.assertEqual(verify.verify_record('{"a": NaN}')["errors"], ["BAD_JSON"])
+
     def test_no_exceptions_on_garbage(self):
         for rec in ([], "x", {"signature": "x"}, {"schema_version": "1.0", "signature": {}}, {"schema_version": None, "signature": {}}):
             self.assertEqual(verify.verify_record(rec)["status"], "INVALID")
@@ -125,10 +138,21 @@ class Cli(unittest.TestCase):
     def run_cli(self, *args):
         return subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), *map(str, args)], capture_output=True, text=True)
 
-    def test_v02_positional_pubkey(self):
+    def test_v02_needs_flag(self):
         p = self.run_cli(ROOT / "verifier/record-valid.json", ROOT / "verifier/demo-pub.pem")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("LEGACY_V02_NOT_ENABLED", p.stdout)
+
+    def test_v02_positional_pubkey(self):
+        p = self.run_cli(ROOT / "verifier/record-valid.json", ROOT / "verifier/demo-pub.pem", "--allow-legacy-v02", "--json")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertTrue(p.stdout.startswith("VALID"))
+        r = json.loads(p.stdout)
+        self.assertEqual((r["status"], sorted(r["warnings"])), ("VALID", ["LEGACY_V02_SIGNATURE_ONLY", "NO_KEYSET_VALIDITY_NOT_CHECKED"]))
+
+    def test_v02_production_keyset_no_demo_fallback(self):
+        p = self.run_cli(ROOT / "verifier/record-valid.json", "--keyset", TV / "keyset-production-like.json", "--allow-legacy-v02", "--json")
+        r = json.loads(p.stdout)
+        self.assertEqual((r["status"], r["errors"]), ("INVALID", ["UNKNOWN_KEY"]), r)
 
     def test_v10_default_keyset(self):
         p = self.run_cli(TV / "valid.json")

@@ -1,0 +1,61 @@
+{
+  "record_id": "at_dr_neg_legacy_2030",
+  "schema_version": "0.2-draft",
+  "example_data": true,
+  "input": {
+    "url": "https://api.example-seller.test/v1/report",
+    "payTo": "0x0000000000000000000000000000000000000002",
+    "network": "eip155:8453"
+  },
+  "verdict": "warn",
+  "score": 62,
+  "level": "medium",
+  "reasons": [
+    "Payee wallet first seen less than 7 days ago",
+    "Price is above the listed price for this resource"
+  ],
+  "reason_codes": [
+    "PAYEE_NEW",
+    "PRICE_ABOVE_LISTING"
+  ],
+  "evidence": {
+    "liveness": {
+      "result": "pass",
+      "detail": "Resource answered with HTTP 402 and valid payment requirements"
+    },
+    "price_vs_listing": {
+      "result": "warn",
+      "detail": "Requested 4.50 USDC; listed price 3.00 USDC"
+    },
+    "payto_change": {
+      "result": "pass",
+      "detail": "payTo unchanged since first seen"
+    },
+    "schema": {
+      "result": "pass",
+      "detail": "x402 payment requirements match the expected schema"
+    },
+    "payee_wallet_risk": {
+      "result": "warn",
+      "detail": "Wallet age under 7 days; no OFAC SDN match",
+      "ofac_match": false
+    }
+  },
+  "checkedAt": "2030-01-15T09:00:00Z",
+  "payer_agent_id": "agent:example-buyer-01",
+  "payer_wallet": "0x0000000000000000000000000000000000000001",
+  "asset": "USDC",
+  "amount": "4.50",
+  "policy_id": "policy:default-v1",
+  "outcome": {
+    "status": "pending",
+    "linked_events": []
+  },
+  "signature": {
+    "alg": "Ed25519",
+    "key_id": "polkulab-demo-2026-11",
+    "canonicalization": "RFC 8785 (JCS) of the record without the signature field",
+    "sha256": "d619b7b8966d611c1dd47cfb0a8e5ce7b59a8a244db5b44a18929e2562d231e3",
+    "sig_base64": "pNfHWnMaqF4tzQP9rjTcE7jdDJZyrVp/WDROEi9kP2fqH2MQIw9ztykfP7xdKri6VEKcm8nFhyl1GjxBF86XCA=="
+  }
+}

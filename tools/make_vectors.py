@@ -48,6 +48,18 @@ def dump(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def sign_v02(record: dict, key: Ed25519PrivateKey, key_id: str = KEY_ID) -> dict:
+    """Legacy 0.2-draft signature object (with canonicalization and sha256 members)."""
+    body = copy.deepcopy(record)
+    body.pop("signature", None)
+    msg = jcs(body)
+    out = copy.deepcopy(body)
+    out["signature"] = {"alg": "Ed25519", "key_id": key_id,
+                        "canonicalization": "RFC 8785 (JCS) of the record without the signature field",
+                        "sha256": sha256_hex(msg), "sig_base64": base64.b64encode(key.sign(msg)).decode()}
+    return out
+
+
 def sign(record: dict, key: Ed25519PrivateKey, key_id: str = KEY_ID) -> dict:
     """v1.0 signature object: exactly alg, key_id, sig_base64 (SPEC §3)."""
     body = copy.deepcopy(record)
@@ -286,6 +298,19 @@ def main() -> None:
         "keyset-version-0.3.json": keyset_variant("unsupported keyset_version.", lambda k: k.update({"keyset_version": "0.3-draft"})),
         "keyset-bad-timestamp.json": keyset_variant("valid_from without a Z zone.", lambda k: k["keys"][0].update({"valid_from": "2026-11-01T00:00:00"})),
     }
+    # A production-like keyset that does not contain the demo key. The public key is derived from a
+    # fixed public test seed, so the file is stable; it is a test key, never used to sign anything real.
+    prod_pub = Ed25519PrivateKey.from_private_bytes(hashlib.sha256(b"x402-decision-record test: production-like keyset").digest()) \
+        .public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    keysets["keyset-production-like.json"] = {
+        "_note": "EXAMPLE keyset for tests: production-like, WITHOUT the demo key. Test public key only.",
+        "keyset_version": "1.0",
+        "issuer": "https://trypolkulab.com",
+        "published_at": "2026-11-19T00:00:00Z",
+        "keys": [{"key_id": "polkulab-prod-2026-12", "alg": "Ed25519", "public_key_pem": prod_pub,
+                  "valid_from": "2026-12-01T00:00:00Z", "valid_until": "2027-12-01T00:00:00Z", "status": "active",
+                  "purpose": "test stand-in for a production key"}],
+    }
 
     # ------------------------------------------------------------ records
     valid = sign(base_record(), key)
@@ -404,6 +429,33 @@ def main() -> None:
         assert vtext.count(old) == 1
         (NEG / name).write_text(vtext.replace(old, new), encoding="utf-8")
 
+    # duplicate members (DUPLICATE_MEMBER), written as text
+    assert vtext.count('"score": 62,') == 1
+    (NEG / "duplicate-member.json").write_text(vtext.replace('"score": 62,', '"score": 30,\n    "score": 62,'), encoding="utf-8")
+    ktext = (TV / "keyset-demo.json").read_text(encoding="utf-8")
+    assert ktext.count('"status": "active",') == 1
+    (NEG / "keyset-duplicate-member.json").write_text(ktext.replace('"status": "active",', '"status": "revoked",\n      "status": "active",'), encoding="utf-8")
+    for name, net in (("network-leading-zero.json", "eip155:08453"), ("network-zero.json", "eip155:0")):
+        dump(NEG / name, mutated(key, lambda r, net=net: set_path(r, ["payment", "network"], net), "at_dr_neg_" + name[:-5].replace("-", "_")))
+
+    # legacy 0.2-draft (SPEC §11.1)
+    v02 = json.loads((ROOT / "verifier" / "record-valid.json").read_text(encoding="utf-8"))
+    v02_body = {k: v for k, v in v02.items() if k != "signature"}
+    # Ella's case 1: v1.0 content relabelled 0.2-draft, signed with the demo key (revoked for key_compromise
+    # in keyset-revoked.json). Must not pass as a "signature-only" legacy record.
+    relabel = dict(base_record(record_id="at_dr_neg_legacy_relabel"), schema_version="0.2-draft")
+    dump(NEG / "legacy-v1-fields-relabelled.json", sign(relabel, key))
+    # Ella's case 2: the same with decision_issued_at in 2030, after the key's valid_until.
+    relabel2 = dict(base_record(record_id="at_dr_neg_legacy_relabel_2030", issued_at="2030-01-15T09:00:00.910Z",
+                                valid_after="2030-01-15T08:59:00Z", valid_before="2030-01-15T09:05:00Z",
+                                presented="2030-01-15T09:00:00.150Z", received="2030-01-15T09:00:00.000Z"),
+                    schema_version="0.2-draft")
+    dump(NEG / "legacy-v1-fields-relabelled-2030.json", sign(relabel2, key))
+    # a pure v0.2 record issued (checkedAt) in 2030, after the key's valid_until
+    dump(NEG / "legacy-v02-checked-2030.json", sign_v02(dict(v02_body, record_id="at_dr_neg_legacy_2030", checkedAt="2030-01-15T09:00:00Z"), key))
+    # a v0.2 record carrying one v1.0 member
+    dump(NEG / "legacy-v02-with-payment.json", sign_v02(dict(v02_body, record_id="at_dr_neg_legacy_payment", payment=base_record()["payment"]), key))
+
     # Example of a later record linking to a decision record: hash = jcs(record), signature INCLUDED.
     outcome = {
         "_note": "EXAMPLE DATA ONLY. Unsigned stand-in for a later outcome record that links to valid.json.",
@@ -490,21 +542,49 @@ def main() -> None:
     case("linked record altered: warning only", "valid.json", "VALID", [],
          ["LINK_NOT_SUPPLIED_OR_MISMATCH:content_time_record", "LINK_NOT_SUPPLIED_OR_MISMATCH:seller_attestation"],
          linked=["negative/linked-content-time-record-altered.json"])
-    case("legacy v0.2 valid", "../../verifier/record-valid.json", "VALID",
+    case("S1 duplicate member in record", "negative/duplicate-member.json", "INVALID", ["DUPLICATE_MEMBER:/decision/score"])
+    case("S1 duplicate member in keyset", "valid.json", "INVALID", ["DUPLICATE_MEMBER:keyset#/keys/0/status"], keyset="negative/keyset-duplicate-member.json")
+    case("S3 network with leading zero", "negative/network-leading-zero.json", "INVALID", ["UNSUPPORTED_NETWORK:/payment/network"])
+    case("S3 network eip155:0", "negative/network-zero.json", "INVALID", ["UNSUPPORTED_NETWORK:/payment/network"])
+    # legacy 0.2-draft: only with allow_legacy_v02
+    LV = "../../verifier/record-valid.json"
+    V1_MEMBERS = ["record_type", "issuer", "signing_key", "payment", "timeline", "checks", "decision",
+                  "field_evidence_ceilings", "links", "not_covered"]
+    relabel_errors = ["LEGACY_V02_WITH_V1_FIELDS:/" + m for m in V1_MEMBERS] + ["SCHEMA_VIOLATION:/checkedAt"]
+    case("legacy v0.2 not enabled", LV, "INVALID", ["LEGACY_V02_NOT_ENABLED"])
+    case("legacy v0.2 valid", LV, "VALID", [], ["LEGACY_V02_SIGNATURE_ONLY"], allow_legacy_v02=True,
          sha256="f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0")
     case("legacy v0.2 tampered", "../../verifier/record-tampered.json", "INVALID", ["BAD_SIGNATURE"],
-         ["EMBEDDED_SHA256_MISMATCH"])
+         ["EMBEDDED_SHA256_MISMATCH"], allow_legacy_v02=True)
+    case("legacy v0.2, no keyset and no key: demo key assumed", LV, "VALID", [], ["DEMO_KEY_ASSUMED", "LEGACY_V02_SIGNATURE_ONLY"],
+         keyset=None, allow_legacy_v02=True)
+    case("Ella 1: v1.0 fields labelled 0.2-draft, key revoked (key_compromise)", "negative/legacy-v1-fields-relabelled.json",
+         "INVALID", relabel_errors, keyset="keyset-revoked.json", allow_legacy_v02=True)
+    case("Ella 2: v1.0 fields labelled 0.2-draft, issued 2030", "negative/legacy-v1-fields-relabelled-2030.json",
+         "INVALID", relabel_errors, keyset="keyset-revoked.json", allow_legacy_v02=True)
+    case("Ella 3: demo-signed v0.2 against a production-like keyset", LV, "INVALID", ["UNKNOWN_KEY"],
+         keyset="keyset-production-like.json", allow_legacy_v02=True)
+    case("legacy v0.2, key revoked for key_compromise", LV, "INVALID", ["KEY_REVOKED"], keyset="keyset-revoked.json", allow_legacy_v02=True)
+    case("legacy v0.2, key superseded: always revoked on the legacy path", LV, "INVALID", ["KEY_REVOKED"],
+         keyset="keyset-superseded-later.json", allow_legacy_v02=True)
+    case("legacy v0.2, checkedAt after the key's valid_until", "negative/legacy-v02-checked-2030.json", "INVALID",
+         ["KEY_NOT_VALID_AT_ISSUANCE"], allow_legacy_v02=True)
+    case("legacy v0.2, checkedAt 2030 and key revoked", "negative/legacy-v02-checked-2030.json", "INVALID",
+         ["KEY_NOT_VALID_AT_ISSUANCE", "KEY_REVOKED"], keyset="keyset-revoked.json", allow_legacy_v02=True)
+    case("legacy v0.2 with one v1.0 member", "negative/legacy-v02-with-payment.json", "INVALID",
+         ["LEGACY_V02_WITH_V1_FIELDS:/payment"], allow_legacy_v02=True)
     dump(TV / "expected.json", {
         "_note": ("Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over "
                   "this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no "
-                  "keyset; keyset_sha256 is checked against the exact bytes of the keyset file. Records are passed to the "
-                  "verifiers as file text."),
+                  "keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means "
+                  "legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). "
+                  "Records and keysets are passed to the verifiers as file text."),
         "keyset_anchor_sha256": anchor,
         "cases": cases,
     })
 
     # schema copies next to the standalone verifier
-    for s in ("decision-record.v1.0.schema.json", "keyset.v1.0.schema.json"):
+    for s in ("decision-record.v1.0.schema.json", "decision-record.v0.2.schema.json", "keyset.v1.0.schema.json"):
         (ROOT / "verifier" / s).write_bytes((ROOT / "schema" / s).read_bytes())
 
     # inject into verify.html
@@ -515,6 +595,7 @@ def main() -> None:
     block = ("/* BEGIN GENERATED (tools/make_vectors.py) */\n"
              f"  const RECORD_SCHEMA = {json.dumps(rs)};\n"
              f"  const KEYSET_SCHEMA = {json.dumps(ks)};\n"
+             f"  const LEGACY_V02_SCHEMA = {json.dumps(json.loads((ROOT / 'schema' / 'decision-record.v0.2.schema.json').read_text(encoding='utf-8')))};\n"
              f"  const DEMO_KEYSET = {json.dumps(keyset, indent=2)};\n"
              f"  const DEMO_V10 = {json.dumps({'valid': valid, 'tampered': tampered, 'wrong_key': wrong, 'expired_key': expired}, indent=2)};\n"
              f"  const DEMO_BINDING_INPUTS = {json.dumps(BINDING_INPUTS, indent=2)};\n"

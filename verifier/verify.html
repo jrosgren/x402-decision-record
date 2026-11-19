@@ -68,6 +68,7 @@
       color: var(--ink);
       resize: vertical;
     }
+    label.inline { display: inline; font-weight: 400; margin: 0; }
     #record { min-height: 22rem; }
     #pubkey { min-height: 6.5rem; }
     #keyset { min-height: 8rem; }
@@ -147,7 +148,7 @@
 <body>
   <main>
     <h1>x402 decision record verifier</h1>
-    <p class="byline">Supports schema v1.0 (release candidate; freeze planned 24.11.2026, tagged release v1.0.0 by 25.11.2026) and legacy v0.2-draft.</p>
+    <p class="byline">Supports schema v1.0 (release candidate; freeze planned 24.11.2026, tagged release v1.0.0 by 25.11.2026). Legacy v0.2-draft only when you tick the box below.</p>
     <p class="byline">Made by Aron, Polkulab (Payvetted)</p>
 
     <div class="notices">
@@ -156,70 +157,10 @@
     </div>
 
     <label for="record">Signed record (JSON)</label>
-    <textarea id="record" spellcheck="false" aria-describedby="record-hint">{
-  "record_id": "at_dr_example_000001",
-  "schema_version": "0.2-draft",
-  "example_data": true,
-  "input": {
-    "url": "https://api.example-seller.test/v1/report",
-    "payTo": "0x0000000000000000000000000000000000000002",
-    "network": "eip155:8453"
-  },
-  "verdict": "warn",
-  "score": 62,
-  "level": "medium",
-  "reasons": [
-    "Payee wallet first seen less than 7 days ago",
-    "Price is above the listed price for this resource"
-  ],
-  "reason_codes": [
-    "PAYEE_NEW",
-    "PRICE_ABOVE_LISTING"
-  ],
-  "evidence": {
-    "liveness": {
-      "result": "pass",
-      "detail": "Resource answered with HTTP 402 and valid payment requirements"
-    },
-    "price_vs_listing": {
-      "result": "warn",
-      "detail": "Requested 4.50 USDC; listed price 3.00 USDC"
-    },
-    "payto_change": {
-      "result": "pass",
-      "detail": "payTo unchanged since first seen"
-    },
-    "schema": {
-      "result": "pass",
-      "detail": "x402 payment requirements match the expected schema"
-    },
-    "payee_wallet_risk": {
-      "result": "warn",
-      "detail": "Wallet age under 7 days; no OFAC SDN match",
-      "ofac_match": false
-    }
-  },
-  "checkedAt": "2026-11-02T09:00:00Z",
-  "payer_agent_id": "agent:example-buyer-01",
-  "payer_wallet": "0x0000000000000000000000000000000000000001",
-  "asset": "USDC",
-  "amount": "4.50",
-  "policy_id": "policy:default-v1",
-  "outcome": {
-    "status": "pending",
-    "linked_events": []
-  },
-  "signature": {
-    "alg": "Ed25519",
-    "key_id": "polkulab-demo-2026-11",
-    "canonicalization": "RFC 8785 (JCS) of the record without the signature field",
-    "sha256": "f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0",
-    "sig_base64": "o4xBo76P7rVQROKSzdkIEH8Py41gWSbEbTvSmPc0mkB7eBt1rYLLY65Lugp8Fhe18U8araC6Fj4wIJmyc7Y0Aw=="
-  }
-}</textarea>
+    <textarea id="record" spellcheck="false" aria-describedby="record-hint"></textarea>
     <div class="row">
-      <button type="button" class="secondary" id="load-valid">Load valid example</button>
-      <button type="button" class="secondary" id="load-tampered">Load tampered example (score 62→30)</button>
+      <button type="button" class="secondary" id="load-valid">Legacy v0.2 valid</button>
+      <button type="button" class="secondary" id="load-tampered">Legacy v0.2 tampered (score 62→30)</button>
     </div>
     <div class="row">
       <button type="button" class="secondary" id="load-v10-valid">v1.0 valid</button>
@@ -228,7 +169,11 @@
       <button type="button" class="secondary" id="load-v10-expired-key">v1.0 expired key</button>
     </div>
 
-    <label for="pubkey">Public key (PEM) — used for v0.2 records, or for v1.0 when the keyset field is empty</label>
+    <div class="row">
+      <label class="inline"><input type="checkbox" id="allow-legacy"> Also accept legacy 0.2-draft records (signature only; no payment binding, timeline or evidence checks)</label>
+    </div>
+
+    <label for="pubkey">Public key (PEM) — used only when the keyset field is empty</label>
     <textarea id="pubkey" spellcheck="false">-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAc2KxBQXTPJ7lQqzL+BDfP2oTvMocJtn1Nm7XsSY/fo0=
 -----END PUBLIC KEY-----
@@ -408,8 +353,9 @@ const AgentTrustVerifier = (function () {
   }
 };
   /* BEGIN GENERATED (tools/make_vectors.py) */
-  const RECORD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v1.0.schema.json", "title": "x402 pre-payment decision record, v1.0", "description": "Signed record of a check made before an x402 payment. See SPEC.md. Verifiers MUST validate a record against this schema before any other step (SPEC \u00a711 step 0). The keyword x-error-code is an annotation naming the error code a verifier reports when that subschema fails; validators that do not know it ignore it.", "type": "object", "additionalProperties": false, "required": ["schema_version", "record_type", "record_id", "issuer", "signing_key", "payment", "timeline", "checks", "decision", "field_evidence_ceilings", "links", "not_covered", "signature"], "properties": {"schema_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_SCHEMA_VERSION"}, "record_type": {"const": "x402-pre-payment-decision"}, "record_id": {"type": "string", "minLength": 1, "maxLength": 128}, "example_data": {"type": "boolean", "description": "true for illustrations and test vectors. Production records omit it or set false."}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "signing_key": {"type": "object", "additionalProperties": false, "required": ["key_id", "keyset_uri"], "properties": {"key_id": {"type": "string", "minLength": 1}, "keyset_uri": {"type": "string", "minLength": 1, "format": "uri", "description": "Primary keyset location; v1.0.0: https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"}}}, "payment": {"type": "object", "additionalProperties": false, "required": ["x402_version", "scheme", "network", "asset", "amount_atomic", "payer", "payee", "resource", "authorization", "payment_requirements_sha256", "request_sha256", "tx_hash"], "properties": {"x402_version": {"const": 2, "description": "v1.0 binds to x402 protocol v2 PaymentRequirements. x402 v1 requirements must be mapped to v2 first (SPEC \u00a74)."}, "scheme": {"type": "string", "minLength": 1}, "network": {"type": "string", "pattern": "^eip155:[0-9]+$", "x-error-code": "UNSUPPORTED_NETWORK", "description": "CAIP-2 chain id. v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."}, "asset": {"type": "string", "minLength": 1}, "asset_symbol": {"type": "string"}, "asset_decimals": {"type": "integer", "minimum": 0, "maximum": 255}, "amount_atomic": {"$ref": "#/$defs/uintString"}, "payer": {"type": "string", "minLength": 1}, "payee": {"type": "string", "minLength": 1}, "resource": {"type": "string", "minLength": 1, "format": "uri"}, "authorization": {"type": "object", "additionalProperties": false, "required": ["nonce_sha256", "valid_before"], "properties": {"nonce_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "eip3009-nonce-bytes32"}}}, "valid_after": {"$ref": "#/$defs/timestamp"}, "valid_before": {"$ref": "#/$defs/timestamp"}}}, "payment_requirements_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(payment_requirements)"}}}, "request_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(resource_request)"}}}, "tx_hash": {"type": ["string", "null"], "description": "null when the record is signed before settlement (the normal case)."}}}, "timeline": {"type": "object", "additionalProperties": false, "required": ["requirements_received_at", "authorization_presented_at", "decision_issued_at"], "properties": {"requirements_received_at": {"$ref": "#/$defs/timestamp"}, "authorization_presented_at": {"$ref": "#/$defs/timestamp"}, "decision_issued_at": {"$ref": "#/$defs/timestamp"}}}, "checks": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "result", "ran_at", "evidence_ceiling", "evidence_sha256"], "properties": {"id": {"type": "string", "pattern": "^(x-[a-z0-9-]+\\.)?[a-z0-9_]+(\\.[a-z0-9_]+)*$", "description": "Registered ids: endpoint.health, terms.price_vs_listing, payto.change, payee.wallet_risk. Custom ids use the prefix x-<issuer>. Verifiers MUST ignore unknown ids rather than reject the record."}, "result": {"enum": ["pass", "warn", "fail", "error", "skipped"]}, "ran_at": {"$ref": "#/$defs/timestamp"}, "evidence_ceiling": {"$ref": "#/$defs/ceiling"}, "evidence_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(evidence)"}}}, "evidence": {"type": "object", "description": "Optional inline evidence. If present, its JCS hash must equal evidence_sha256.hex."}}}}, "decision": {"type": "object", "additionalProperties": false, "required": ["verdict", "score", "reason_codes", "policy_id"], "properties": {"verdict": {"enum": ["allow", "warn", "deny"]}, "score": {"type": "integer", "minimum": 0, "maximum": 100}, "level": {"enum": ["low", "medium", "high"]}, "reason_codes": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9_]+$"}}, "policy_id": {"type": "string", "minLength": 1}, "payer_agent_id": {"type": "string"}}}, "field_evidence_ceilings": {"type": "object", "propertyNames": {"pattern": "^(/[^/]+)+$"}, "additionalProperties": {"$ref": "#/$defs/ceiling"}}, "links": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["rel", "issuer", "record_sha256", "evidence_ceiling"], "properties": {"rel": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "scope": {"type": "string"}, "expires_at": {"$ref": "#/$defs/timestamp"}, "uri": {"type": "string", "format": "uri"}, "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(record)", "jcs(linked-record)", "raw(linked-record)"]}}}, "evidence_ceiling": {"$ref": "#/$defs/ceiling"}}, "if": {"properties": {"rel": {"const": "seller_attestation"}}, "required": ["rel"]}, "then": {"required": ["scope", "expires_at"]}}}, "not_covered": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["code", "text"], "properties": {"code": {"type": "string", "pattern": "^[A-Z0-9_]+$"}, "text": {"type": "string", "minLength": 1}}}}, "signature": {"type": "object", "x-error-code": "BAD_SIGNATURE_OBJECT", "description": "Exactly these three members. No canonicalization or sha256 member in v1.0 (SPEC \u00a73): unsigned extra members would let anyone change jcs(record).", "additionalProperties": false, "required": ["alg", "key_id", "sig_base64"], "properties": {"alg": {"const": "Ed25519"}, "key_id": {"type": "string", "minLength": 1}, "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$", "x-error-code": "NONCANONICAL_SIGNATURE", "description": "Canonical standard base64 with padding of the 64-byte signature: the unused low bits of the last data character are zero."}}}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."}, "uintString": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}, "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "ceiling": {"enum": ["recomputable_from_chain", "recomputable_from_client_view", "issuer_assertion"]}, "hash": {"type": "object", "additionalProperties": false, "required": ["alg", "input", "hex"], "properties": {"alg": {"const": "sha-256"}, "input": {"type": "string"}, "hex": {"$ref": "#/$defs/hex64"}}}}};
+  const RECORD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v1.0.schema.json", "title": "x402 pre-payment decision record, v1.0", "description": "Signed record of a check made before an x402 payment. See SPEC.md. Verifiers MUST validate a record against this schema before any other step (SPEC \u00a711 step 0). The keyword x-error-code is an annotation naming the error code a verifier reports when that subschema fails; validators that do not know it ignore it.", "type": "object", "additionalProperties": false, "required": ["schema_version", "record_type", "record_id", "issuer", "signing_key", "payment", "timeline", "checks", "decision", "field_evidence_ceilings", "links", "not_covered", "signature"], "properties": {"schema_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_SCHEMA_VERSION"}, "record_type": {"const": "x402-pre-payment-decision"}, "record_id": {"type": "string", "minLength": 1, "maxLength": 128}, "example_data": {"type": "boolean", "description": "true for illustrations and test vectors. Production records omit it or set false."}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "signing_key": {"type": "object", "additionalProperties": false, "required": ["key_id", "keyset_uri"], "properties": {"key_id": {"type": "string", "minLength": 1}, "keyset_uri": {"type": "string", "minLength": 1, "format": "uri", "description": "Primary keyset location; v1.0.0: https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"}}}, "payment": {"type": "object", "additionalProperties": false, "required": ["x402_version", "scheme", "network", "asset", "amount_atomic", "payer", "payee", "resource", "authorization", "payment_requirements_sha256", "request_sha256", "tx_hash"], "properties": {"x402_version": {"const": 2, "description": "v1.0 binds to x402 protocol v2 PaymentRequirements. x402 v1 requirements must be mapped to v2 first (SPEC \u00a74)."}, "scheme": {"type": "string", "minLength": 1}, "network": {"type": "string", "pattern": "^eip155:[1-9][0-9]*$", "x-error-code": "UNSUPPORTED_NETWORK", "description": "CAIP-2 chain id. v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."}, "asset": {"type": "string", "minLength": 1}, "asset_symbol": {"type": "string"}, "asset_decimals": {"type": "integer", "minimum": 0, "maximum": 255}, "amount_atomic": {"$ref": "#/$defs/uintString"}, "payer": {"type": "string", "minLength": 1}, "payee": {"type": "string", "minLength": 1}, "resource": {"type": "string", "minLength": 1, "format": "uri"}, "authorization": {"type": "object", "additionalProperties": false, "required": ["nonce_sha256", "valid_before"], "properties": {"nonce_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "eip3009-nonce-bytes32"}}}, "valid_after": {"$ref": "#/$defs/timestamp"}, "valid_before": {"$ref": "#/$defs/timestamp"}}}, "payment_requirements_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(payment_requirements)"}}}, "request_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(resource_request)"}}}, "tx_hash": {"type": ["string", "null"], "description": "null when the record is signed before settlement (the normal case)."}}}, "timeline": {"type": "object", "additionalProperties": false, "required": ["requirements_received_at", "authorization_presented_at", "decision_issued_at"], "properties": {"requirements_received_at": {"$ref": "#/$defs/timestamp"}, "authorization_presented_at": {"$ref": "#/$defs/timestamp"}, "decision_issued_at": {"$ref": "#/$defs/timestamp"}}}, "checks": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "result", "ran_at", "evidence_ceiling", "evidence_sha256"], "properties": {"id": {"type": "string", "pattern": "^(x-[a-z0-9-]+\\.)?[a-z0-9_]+(\\.[a-z0-9_]+)*$", "description": "Registered ids: endpoint.health, terms.price_vs_listing, payto.change, payee.wallet_risk. Custom ids use the prefix x-<issuer>. Verifiers MUST ignore unknown ids rather than reject the record."}, "result": {"enum": ["pass", "warn", "fail", "error", "skipped"]}, "ran_at": {"$ref": "#/$defs/timestamp"}, "evidence_ceiling": {"$ref": "#/$defs/ceiling"}, "evidence_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(evidence)"}}}, "evidence": {"type": "object", "description": "Optional inline evidence. If present, its JCS hash must equal evidence_sha256.hex."}}}}, "decision": {"type": "object", "additionalProperties": false, "required": ["verdict", "score", "reason_codes", "policy_id"], "properties": {"verdict": {"enum": ["allow", "warn", "deny"]}, "score": {"type": "integer", "minimum": 0, "maximum": 100}, "level": {"enum": ["low", "medium", "high"]}, "reason_codes": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9_]+$"}}, "policy_id": {"type": "string", "minLength": 1}, "payer_agent_id": {"type": "string"}}}, "field_evidence_ceilings": {"type": "object", "propertyNames": {"pattern": "^(/[^/]+)+$"}, "additionalProperties": {"$ref": "#/$defs/ceiling"}}, "links": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["rel", "issuer", "record_sha256", "evidence_ceiling"], "properties": {"rel": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "scope": {"type": "string"}, "expires_at": {"$ref": "#/$defs/timestamp"}, "uri": {"type": "string", "format": "uri"}, "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(record)", "jcs(linked-record)", "raw(linked-record)"]}}}, "evidence_ceiling": {"$ref": "#/$defs/ceiling"}}, "if": {"properties": {"rel": {"const": "seller_attestation"}}, "required": ["rel"]}, "then": {"required": ["scope", "expires_at"]}}}, "not_covered": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["code", "text"], "properties": {"code": {"type": "string", "pattern": "^[A-Z0-9_]+$"}, "text": {"type": "string", "minLength": 1}}}}, "signature": {"type": "object", "x-error-code": "BAD_SIGNATURE_OBJECT", "description": "Exactly these three members. No canonicalization or sha256 member in v1.0 (SPEC \u00a73): unsigned extra members would let anyone change jcs(record).", "additionalProperties": false, "required": ["alg", "key_id", "sig_base64"], "properties": {"alg": {"const": "Ed25519"}, "key_id": {"type": "string", "minLength": 1}, "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$", "x-error-code": "NONCANONICAL_SIGNATURE", "description": "Canonical standard base64 with padding of the 64-byte signature: the unused low bits of the last data character are zero."}}}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."}, "uintString": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}, "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "ceiling": {"enum": ["recomputable_from_chain", "recomputable_from_client_view", "issuer_assertion"]}, "hash": {"type": "object", "additionalProperties": false, "required": ["alg", "input", "hex"], "properties": {"alg": {"const": "sha-256"}, "input": {"type": "string"}, "hex": {"$ref": "#/$defs/hex64"}}}}};
   const KEYSET_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/keyset.v1.0.schema.json", "title": "Decision-record signing keyset, v1.0", "description": "See SPEC \u00a79. key_id MUST be unique within a keyset (verifiers reject duplicates with DUPLICATE_KEY_ID; JSON Schema cannot express this). x-error-code is an annotation, see the record schema.", "type": "object", "additionalProperties": false, "required": ["keyset_version", "issuer", "published_at", "keys"], "properties": {"_note": {"type": "string"}, "keyset_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_KEYSET_VERSION"}, "example_data": {"type": "boolean"}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "published_at": {"$ref": "#/$defs/timestamp"}, "keyset_signature": {"type": ["object", "null"], "description": "RESERVED for v1.1 (signature by a KMS-held root key). Not used in v1.0: issuers SHOULD omit it and v1.0 verifiers MUST ignore it."}, "keys": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["key_id", "alg", "public_key_pem", "valid_from", "valid_until", "status"], "properties": {"key_id": {"type": "string", "minLength": 1}, "alg": {"const": "Ed25519"}, "public_key_pem": {"type": "string", "pattern": "^-----BEGIN PUBLIC KEY-----"}, "valid_from": {"$ref": "#/$defs/timestamp"}, "valid_until": {"$ref": "#/$defs/timestamp"}, "status": {"enum": ["active", "retired", "revoked"]}, "revoked_at": {"$ref": "#/$defs/timestamp"}, "revocation_reason": {"enum": ["key_compromise", "superseded"]}, "purpose": {"type": "string"}}, "if": {"properties": {"status": {"const": "revoked"}}, "required": ["status"]}, "then": {"required": ["revoked_at", "revocation_reason"]}}}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "Same format as in the record schema."}}};
+  const LEGACY_V02_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v0.2.schema.json", "title": "x402 pre-payment decision record, legacy v0.2-draft (closed)", "description": "LEGACY. Closed schema for 0.2-draft records, used by the reference verifiers only when legacy verification is explicitly enabled (SPEC \u00a711.1). Any v1.0 member makes the record INVALID (LEGACY_V02_WITH_V1_FIELDS), so v1.0 content cannot be relabelled 0.2-draft to skip the v1.0 checks.", "type": "object", "additionalProperties": false, "required": ["record_id", "schema_version", "checkedAt", "signature"], "properties": {"record_id": {"type": "string", "minLength": 1}, "schema_version": {"const": "0.2-draft"}, "example_data": {"type": "boolean"}, "input": {"type": "object"}, "verdict": {"enum": ["allow", "warn", "deny"]}, "score": {"type": "integer", "minimum": 0, "maximum": 100}, "level": {"type": "string"}, "reasons": {"type": "array", "items": {"type": "string"}}, "reason_codes": {"type": "array", "items": {"type": "string"}}, "evidence": {"type": "object"}, "checkedAt": {"$ref": "#/$defs/timestamp", "description": "Issuance time of a v0.2 record; checked against the key's validity window."}, "payer_agent_id": {"type": "string"}, "payer_wallet": {"type": "string"}, "asset": {"type": "string"}, "amount": {"type": "string"}, "policy_id": {"type": "string"}, "outcome": {"type": "object"}, "signature": {"type": "object", "x-error-code": "BAD_SIGNATURE_OBJECT", "additionalProperties": false, "required": ["alg", "key_id", "sig_base64"], "properties": {"alg": {"const": "Ed25519"}, "key_id": {"type": "string", "minLength": 1}, "canonicalization": {"type": "string"}, "sha256": {"type": "string"}, "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$", "x-error-code": "NONCANONICAL_SIGNATURE"}}}, "record_type": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "issuer": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "signing_key": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "payment": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "timeline": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "checks": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "decision": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "field_evidence_ceilings": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "links": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "not_covered": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."}}};
   const DEMO_KEYSET = {
   "_note": "EXAMPLE / DEMO keyset. The demo key signs example records only, never production decisions.",
   "keyset_version": "1.0",
@@ -1071,7 +1017,7 @@ const AgentTrustVerifier = (function () {
     "signature": {
       "alg": "Ed25519",
       "key_id": "polkulab-demo-2026-11",
-      "sig_base64": "3KTD34hiDQbvkKxnuvGQLVShDSaV4aI68Mq66B1IqQooHyig3YYa2C/WWEDotI4mId8nDzpwM4hfyB6X9BGHAg=="
+      "sig_base64": "E01cmYYW70d1cp2EcYIRbyv47ul5MvGiui4SuusEdgA1GE7wKW++vP2wkvvaj/GFPq0nfhlUrgp9pvfExHquBQ=="
     }
   },
   "expired_key": {
@@ -1495,27 +1441,94 @@ const AgentTrustVerifier = (function () {
   const CHECK_REGISTRY = ['endpoint.health', 'terms.price_vs_listing', 'payto.change', 'payee.wallet_risk'];
   const TS_RE = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{3}))?Z$/;
   const NONCE_RE = /^0x[0-9a-fA-F]{64}$/;
-  const BAD_NUMBER_MARK = Object.freeze({ __bad_number__: true });
 
   function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   function ptrJoin(ptr, key) { return ptr + '/' + String(key).replace(/~/g, '~0').replace(/\//g, '~1'); }
   function uniq(xs) { return xs.filter(function (x, i) { return xs.indexOf(x) === i; }); }
 
-  // Parse record text so that numbers with a fraction or exponent part, or outside +-(2^53-1),
-  // are kept visible (JSON.parse would turn 62.0 into 62). Uses JSON.parse source text access.
-  function parseRecordText(text) {
-    return JSON.parse(text, function (k, v, ctx) {
-      if (typeof v !== 'number') return v;
-      const src = ctx && typeof ctx.source === 'string' ? ctx.source : null;
-      if ((src !== null && !/^-?(0|[1-9][0-9]*)$/.test(src)) || !Number.isSafeInteger(v)) return BAD_NUMBER_MARK;
-      return v;
-    });
+  // Token scan of JSON text (same algorithm as scan_json in verify.py): duplicate members
+  // (DUPLICATE_MEMBER) and numbers with a fraction or exponent part or outside +-(2^53-1)
+  // (BAD_NUMBER), with JSON Pointers. Throws for text that is not JSON. Does not depend on
+  // JSON.parse source-text access, so it fails closed in every browser.
+  function scanJson(text) {
+    let i = 0;
+    const n = text.length, dups = [], bad = [];
+    function ws() { while (i < n && ' \t\n\r'.indexOf(text[i]) >= 0) i++; }
+    function str() {
+      const start = i; i++;
+      while (i < n) {
+        const c = text[i];
+        if (c === '\\') i += 2;
+        else if (c === '"') { i++; return JSON.parse(text.slice(start, i)); }
+        else i++;
+      }
+      throw new Error('unterminated string');
+    }
+    const NUM = /-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?/y;
+    function val(ptr, depth) {
+      if (depth > 200) throw new Error('nesting too deep');
+      ws();
+      const c = text[i];
+      if (c === '{') {
+        i++;
+        const seen = Object.create(null);
+        ws();
+        if (text[i] === '}') { i++; return; }
+        for (;;) {
+          ws();
+          if (text[i] !== '"') throw new Error('expected member name');
+          const k = str();
+          ws();
+          if (text[i] !== ':') throw new Error('expected :');
+          i++;
+          if (seen[k]) dups.push('DUPLICATE_MEMBER:' + ptrJoin(ptr, k));
+          seen[k] = true;
+          val(ptrJoin(ptr, k), depth + 1);
+          ws();
+          if (text[i] === ',') { i++; continue; }
+          if (text[i] === '}') { i++; return; }
+          throw new Error('expected , or }');
+        }
+      }
+      if (c === '[') {
+        i++;
+        ws();
+        if (text[i] === ']') { i++; return; }
+        for (let k = 0; ; k++) {
+          val(ptrJoin(ptr, k), depth + 1);
+          ws();
+          if (text[i] === ',') { i++; continue; }
+          if (text[i] === ']') { i++; return; }
+          throw new Error('expected , or ]');
+        }
+      }
+      if (c === '"') { str(); return; }
+      NUM.lastIndex = i;
+      const m = NUM.exec(text);
+      if (m && m[0]) {
+        i += m[0].length;
+        if (m[2] || m[3] || m[1].length > 16 || !Number.isSafeInteger(Number(m[0]))) bad.push('BAD_NUMBER:' + ptr);
+        return;
+      }
+      for (const lit of ['true', 'false', 'null']) if (text.startsWith(lit, i)) { i += lit.length; return; }
+      throw new Error('unexpected character');
+    }
+    val('', 0);
+    ws();
+    if (i !== n) throw new Error('trailing data');
+    return { dups: uniq(dups), bad: uniq(bad) };
+  }
+
+  // Returns { obj, errors }: errors are DUPLICATE_MEMBER (first), else BAD_NUMBER, or BAD_JSON.
+  function parseJsonText(text) {
+    let sc, obj;
+    try { sc = scanJson(text); obj = JSON.parse(text); } catch (e) { return { obj: null, errors: ['BAD_JSON'] }; }
+    return { obj: obj, errors: sc.dups.length ? sc.dups : sc.bad };
   }
 
   function numberErrors(o, ptr) {
     ptr = ptr || '';
-    if (o === BAD_NUMBER_MARK) return ['BAD_NUMBER:' + ptr];
     if (typeof o === 'number') return Number.isSafeInteger(o) ? [] : ['BAD_NUMBER:' + ptr];
     let out = [];
     if (Array.isArray(o)) o.forEach(function (v, i) { out = out.concat(numberErrors(v, ptrJoin(ptr, i))); });
@@ -1586,6 +1599,7 @@ const AgentTrustVerifier = (function () {
     } else {
       if (has(node, 'const') && !jsonEqual(inst, node.const)) local.push(SV + ptr);
       if (has(node, 'enum') && !node.enum.some(function (e) { return jsonEqual(inst, e); })) local.push(SV + ptr);
+      if (has(node, 'not') && schemaErrors(root, node.not, inst, ptr).length === 0) local.push(SV + ptr);
       if (typeof inst === 'string') {
         const len = Array.from(inst).length;
         if (has(node, 'pattern') && !new RegExp(node.pattern).test(inst)) local.push(SV + ptr);
@@ -1697,18 +1711,54 @@ const AgentTrustVerifier = (function () {
     }, extra || {});
   }
 
-  async function verifyV02(rec, pem, opts) {
+  // Legacy 0.2-draft (opt-in, SPEC §11.1): closed v0.2 schema, v1.0 key rules, signature.
+  async function verifyLegacyV02(rec, opts) {
+    let errors = numberErrors(rec);
+    if (errors.length) return result('INVALID', rec, null, errors);
+    errors = schemaErrors(LEGACY_V02_SCHEMA, LEGACY_V02_SCHEMA, rec);
+    if (!errors.length && tsMs(rec.checkedAt) === null) errors = ['BAD_TIMESTAMP:/checkedAt'];
+    if (errors.length) return result('INVALID', rec, null, errors);
+    const warnings = [];
+    const sig = rec.signature;
+    const keyId = sig.key_id;
+    const issued = tsMs(rec.checkedAt);
+    let pem = null;
+    if (opts.keyset) {
+      const kerr = keysetErrors(opts.keyset);
+      if (kerr.length) return result('INVALID', rec, null, kerr);
+      const entry = opts.keyset.keys.find(function (k) { return k.key_id === keyId; });
+      if (!entry) {
+        errors.push('UNKNOWN_KEY'); // never fall back to the demo key when a keyset is given
+      } else {
+        pem = entry.public_key_pem;
+        if (!(tsMs(entry.valid_from) <= issued && issued < tsMs(entry.valid_until))) errors.push('KEY_NOT_VALID_AT_ISSUANCE');
+        if (entry.status === 'revoked') errors.push('KEY_REVOKED'); // any reason: no trustworthy issuance time in v0.2
+      }
+    } else if (opts.pem) {
+      pem = opts.pem;
+      warnings.push('NO_KEYSET_VALIDITY_NOT_CHECKED');
+    } else {
+      pem = DEMO_PUB_PEM;
+      warnings.push('DEMO_KEY_ASSUMED');
+    }
     const body = JSON.parse(JSON.stringify(rec));
-    const sig = body.signature;
     delete body.signature;
     const message = canonicalizeBytes(body);
     const digest = await sha256Hex(message);
-    const sigBytes = decodeSig(sig.sig_base64);
-    if (!sigBytes) return result('INVALID', rec, digest, ['NONCANONICAL_SIGNATURE']);
-    const r = await ed25519Verify(message, sigBytes, pem, opts || {});
-    const warnings = (sig.sha256 && sig.sha256 !== digest) ? ['EMBEDDED_SHA256_MISMATCH'] : [];
-    return result(r.ok ? 'VALID' : 'INVALID', rec, digest, r.ok ? [] : ['BAD_SIGNATURE'], warnings, [],
-      { method: r.method, embeddedSha256: sig.sha256 || '', sha256Match: !sig.sha256 || sig.sha256 === digest });
+    let sigOk = false, method = 'none';
+    if (pem) {
+      const sigBytes = decodeSig(sig.sig_base64);
+      if (sigBytes) {
+        const r = await ed25519Verify(message, sigBytes, pem, opts);
+        sigOk = !!r.ok; method = r.method;
+      }
+      if (!sigOk) errors.unshift('BAD_SIGNATURE');
+    }
+    if (sig.sha256 && sig.sha256 !== digest) warnings.push('EMBEDDED_SHA256_MISMATCH');
+    const valid = sigOk && errors.length === 0;
+    if (valid) warnings.push('LEGACY_V02_SIGNATURE_ONLY');
+    return result(valid ? 'VALID' : 'INVALID', rec, digest, errors, warnings, [],
+      { method: method, embeddedSha256: sig.sha256 || '', sha256Match: !sig.sha256 || sig.sha256 === digest });
   }
 
   // record field -> x402 v2 PaymentRequirements field (case-insensitive compare?) ; all MUST be present (M5)
@@ -1845,20 +1895,31 @@ const AgentTrustVerifier = (function () {
     return result(sigOk && errors.length === 0 ? 'VALID' : 'INVALID', rec, digest, errors, warnings, info, { method: method });
   }
 
-  // verifyRecord(record, options): record is JSON text (preferred: exact number checks) or an object.
-  // options: { pem, keyset, keysetText, keysetSha256, bindingInputs, linked, forceTweetnacl, forceWebCrypto }
+  // verifyRecord(record, options): record is JSON text (preferred: exact duplicate-member and
+  // number checks) or an object.
+  // options: { pem, keyset, keysetText, keysetSha256, bindingInputs, linked, allowLegacyV02,
+  //            forceTweetnacl, forceWebCrypto }
   // (legacy call verifyRecord(record, pem, options) still works). Returns status VALID or INVALID.
   async function verifyRecord(record, pemOrOpts, legacyOpts) {
     const opts = (typeof pemOrOpts === 'string' || pemOrOpts == null)
       ? Object.assign({}, legacyOpts || {}, { pem: pemOrOpts })
       : Object.assign({}, pemOrOpts);
-    const rec = (typeof record === 'string') ? parseRecordText(record) : parseRecordText(JSON.stringify(record));
+    const parsed = parseJsonText(typeof record === 'string' ? record : JSON.stringify(record));
+    const rec = parsed.obj;
+    if (parsed.errors.length) return result('INVALID', rec, null, parsed.errors);
     if (typeof opts.keysetText === 'string') {
       // B4: SHA-256 anchor over the exact keyset bytes, as verify.py --keyset-sha256
       if (opts.keysetSha256 && (await sha256Hex(new TextEncoder().encode(opts.keysetText))) !== String(opts.keysetSha256).toLowerCase()) {
         return result('INVALID', rec, null, ['KEYSET_SHA256_MISMATCH']);
       }
-      try { opts.keyset = JSON.parse(opts.keysetText); } catch (e) { return result('INVALID', rec, null, ['SCHEMA_VIOLATION:keyset#']); }
+      const kp = parseJsonText(opts.keysetText);
+      if (kp.errors.length) {
+        return result('INVALID', rec, null, kp.errors.map(function (e) {
+          const i = e.indexOf(':');
+          return i < 0 ? e + ':keyset#' : e.slice(0, i) + ':keyset#' + e.slice(i + 1);
+        }));
+      }
+      opts.keyset = kp.obj;
     } else if (opts.keysetSha256) {
       throw new Error('keysetSha256 needs keysetText (the anchor is over the exact file bytes)');
     }
@@ -1866,14 +1927,8 @@ const AgentTrustVerifier = (function () {
     const v = rec.schema_version;
     if (v === SCHEMA_VERSION) return verifyV10(rec, opts);
     if (v === LEGACY_V02) {
-      let pem = opts.pem;
-      if (!pem && opts.keyset) {
-        const kerr = keysetErrors(opts.keyset);
-        if (kerr.length) return result('INVALID', rec, null, kerr);
-        const e = opts.keyset.keys.find(function (k) { return k.key_id === rec.signature.key_id; });
-        if (e) pem = e.public_key_pem;
-      }
-      return verifyV02(rec, pem || DEMO_PUB_PEM, opts);
+      if (!opts.allowLegacyV02) return result('INVALID', rec, null, ['LEGACY_V02_NOT_ENABLED']);
+      return verifyLegacyV02(rec, opts);
     }
     return result('INVALID', rec, null, ['UNSUPPORTED_SCHEMA_VERSION']);
   }
@@ -1893,6 +1948,8 @@ const AgentTrustVerifier = (function () {
     sha256Hex: sha256Hex,
     schemaErrors: schemaErrors,
     verifyRecord: verifyRecord,
+    scanJson: scanJson,
+    LEGACY_V02_SCHEMA: LEGACY_V02_SCHEMA,
     pemToDer: pemToDer,
     spkiToRawEd25519: spkiToRawEd25519
   };
@@ -1912,6 +1969,7 @@ if (typeof globalThis !== 'undefined') {
   const bindingEl = document.getElementById('binding');
   const linkedEl = document.getElementById('linked');
   if (!recordEl) return;
+  const allowLegacyEl = document.getElementById('allow-legacy');
   if (keysetEl && !keysetEl.value) keysetEl.value = JSON.stringify(AgentTrustVerifier.DEMO_KEYSET, null, 2) + '\n';
 
   function esc(x) {
@@ -1929,11 +1987,19 @@ if (typeof globalThis !== 'undefined') {
       if (linkedEl) linkedEl.value = pretty(AgentTrustVerifier.DEMO_LINKED);
     });
   });
+  if (!recordEl.value.trim()) {
+    recordEl.value = pretty(AgentTrustVerifier.DEMO_V10.valid);
+    if (bindingEl) bindingEl.value = pretty(AgentTrustVerifier.DEMO_BINDING_INPUTS);
+    if (linkedEl) linkedEl.value = pretty(AgentTrustVerifier.DEMO_LINKED);
+  }
+  // The legacy examples tick the opt-in box: a 0.2-draft record is checked only when it is ticked.
   document.getElementById('load-valid').addEventListener('click', function () {
     recordEl.value = pretty(AgentTrustVerifier.DEMO_RECORD_VALID);
+    if (allowLegacyEl) allowLegacyEl.checked = true;
   });
   document.getElementById('load-tampered').addEventListener('click', function () {
     recordEl.value = pretty(AgentTrustVerifier.DEMO_RECORD_TAMPERED);
+    if (allowLegacyEl) allowLegacyEl.checked = true;
   });
   document.getElementById('verify').addEventListener('click', function () {
     runVerify();
@@ -1943,7 +2009,7 @@ if (typeof globalThis !== 'undefined') {
     resultEl.className = '';
     resultEl.innerHTML = '<p class="meta">Checking…</p>';
     try {
-      const opts = { pem: pubkeyEl.value.trim() || null };
+      const opts = { pem: pubkeyEl.value.trim() || null, allowLegacyV02: !!(allowLegacyEl && allowLegacyEl.checked) };
       if (keysetEl && keysetEl.value.trim()) opts.keysetText = keysetEl.value;
       if (anchorEl && anchorEl.value.trim()) opts.keysetSha256 = anchorEl.value.trim();
       if (bindingEl && bindingEl.value.trim()) opts.bindingInputs = JSON.parse(bindingEl.value);

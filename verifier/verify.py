@@ -2,17 +2,25 @@
 """Verify an x402 pre-payment decision record (v1.0, or legacy v0.2-draft).
 
 Usage:
-  python3 verify.py RECORD.json [PUBLIC_KEY.pem]                (v0.2 or v1.0)
-  python3 verify.py RECORD.json --keyset KEYSET.json            (v1.0)
+  python3 verify.py RECORD.json [PUBLIC_KEY.pem]
+  python3 verify.py RECORD.json --keyset KEYSET.json
         [--keyset-sha256 HEX] [--binding-inputs INPUTS.json]
-        [--linked FILE.json ...] [--json]
+        [--linked FILE.json ...] [--allow-legacy-v02] [--json]
 
 Signature: Ed25519 (RFC 8032, strict: canonical base64, S < L) over the
 RFC 8785 (JCS) canonical JSON of the record with the "signature" member
 removed (same rule in v0.2 and v1.0).
 
-Dispatch is on the exact schema_version: "1.0" -> v1.0 rules, "0.2-draft" ->
-legacy v0.2 rules, anything else -> INVALID UNSUPPORTED_SCHEMA_VERSION.
+Dispatch is on the exact schema_version: "1.0" -> v1.0 rules; "0.2-draft" ->
+legacy v0.2 rules, only with --allow-legacy-v02 (otherwise INVALID
+LEGACY_V02_NOT_ENABLED); anything else -> INVALID UNSUPPORTED_SCHEMA_VERSION.
+Legacy v0.2 (SPEC §11.1): closed v0.2 schema (no v1.0 members), keyset rules
+(no demo-key fallback, any revocation -> KEY_REVOKED, validity window on
+checkedAt), signature; a VALID result always carries LEGACY_V02_SIGNATURE_ONLY.
+
+Record and keyset files are scanned as text first: duplicate members
+(DUPLICATE_MEMBER) and numbers with a fraction or exponent part or outside
++-(2^53-1) (BAD_NUMBER) are rejected before parsing.
 
 v1.0 steps, all offline (this script makes no network calls), SPEC §11:
   0. numbers (integers within +-(2^53-1), no floats), JSON Schema validation
@@ -71,6 +79,7 @@ def _find_schema(name: str) -> Path:
 
 
 RECORD_SCHEMA = json.loads(_find_schema("decision-record.v1.0.schema.json").read_text(encoding="utf-8"))
+V02_SCHEMA = json.loads(_find_schema("decision-record.v0.2.schema.json").read_text(encoding="utf-8"))
 KEYSET_SCHEMA = json.loads(_find_schema("keyset.v1.0.schema.json").read_text(encoding="utf-8"))
 
 
@@ -168,6 +177,131 @@ def number_errors(o, ptr: str = "") -> list[str]:
     return out
 
 
+_NUM_RE = re.compile(r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?")
+
+
+def scan_json(text: str) -> tuple[list[str], list[str]]:
+    """Token scan of JSON text (same algorithm as scanJson in verify.html).
+
+    Returns (DUPLICATE_MEMBER errors, BAD_NUMBER errors) with JSON Pointers.
+    Raises ValueError for text that is not JSON."""
+    i, n = 0, len(text)
+    dups: list[str] = []
+    bad: list[str] = []
+
+    def ws():
+        nonlocal i
+        while i < n and text[i] in " \t\n\r":
+            i += 1
+
+    def string() -> str:
+        nonlocal i
+        start = i
+        i += 1
+        while i < n:
+            c = text[i]
+            if c == "\\":
+                i += 2
+            elif c == '"':
+                i += 1
+                return json.loads(text[start:i])
+            else:
+                i += 1
+        raise ValueError("unterminated string")
+
+    def value(ptr: str, depth: int = 0):
+        nonlocal i
+        if depth > 200:
+            raise ValueError("nesting too deep")
+        ws()
+        c = text[i] if i < n else ""
+        if c == "{":
+            i += 1
+            seen: set[str] = set()
+            ws()
+            if i < n and text[i] == "}":
+                i += 1
+                return
+            while True:
+                ws()
+                if i >= n or text[i] != '"':
+                    raise ValueError("expected member name")
+                k = string()
+                ws()
+                if i >= n or text[i] != ":":
+                    raise ValueError("expected :")
+                i += 1
+                if k in seen:
+                    dups.append("DUPLICATE_MEMBER:" + ptr_join(ptr, k))
+                seen.add(k)
+                value(ptr_join(ptr, k), depth + 1)
+                ws()
+                if i < n and text[i] == ",":
+                    i += 1
+                    continue
+                if i < n and text[i] == "}":
+                    i += 1
+                    return
+                raise ValueError("expected , or }")
+        if c == "[":
+            i += 1
+            ws()
+            if i < n and text[i] == "]":
+                i += 1
+                return
+            k = 0
+            while True:
+                value(ptr_join(ptr, k), depth + 1)
+                k += 1
+                ws()
+                if i < n and text[i] == ",":
+                    i += 1
+                    continue
+                if i < n and text[i] == "]":
+                    i += 1
+                    return
+                raise ValueError("expected , or ]")
+        if c == '"':
+            string()
+            return
+        m = _NUM_RE.match(text, i)
+        if m and m.group(0):
+            i = m.end()
+            if m.group(2) or m.group(3) or len(m.group(1)) > 16 or abs(int(m.group(0))) > MAX_SAFE_INT:
+                bad.append("BAD_NUMBER:" + ptr)
+            return
+        for lit in ("true", "false", "null"):
+            if text.startswith(lit, i):
+                i += len(lit)
+                return
+        raise ValueError("unexpected character")
+
+    value("")
+    ws()
+    if i != n:
+        raise ValueError("trailing data")
+    return _uniq(dups), _uniq(bad)
+
+
+def _reject_constant(c):
+    raise ValueError("NaN/Infinity are not JSON")
+
+
+def parse_json_text(text) -> tuple[object, list[str]]:
+    """Parse record/keyset text. Returns (object or None, errors)."""
+    if isinstance(text, bytes):
+        try:
+            text = text.decode("utf-8")
+        except UnicodeDecodeError:
+            return None, ["BAD_JSON"]
+    try:
+        dups, bad = scan_json(text)
+        obj = json.loads(text, parse_constant=_reject_constant)
+    except (ValueError, RecursionError):
+        return None, ["BAD_JSON"]
+    return obj, (dups or bad)
+
+
 def _type_ok(t, v) -> bool:
     if isinstance(t, list):
         return any(_type_ok(x, v) for x in t)
@@ -216,6 +350,8 @@ def schema_errors(root: dict, node: dict, inst, ptr: str = "") -> list[str]:
         if "const" in node and not _json_equal(inst, node["const"]):
             local.append(sv + ptr)
         if "enum" in node and not any(_json_equal(inst, e) for e in node["enum"]):
+            local.append(sv + ptr)
+        if "not" in node and not schema_errors(root, node["not"], inst, ptr):
             local.append(sv + ptr)
         if isinstance(inst, str):
             if "pattern" in node and not _pattern_ok(node["pattern"], inst):
@@ -339,19 +475,58 @@ def _invalid(rec, errors) -> dict:
     return _result("INVALID", v, None, kid, _uniq(errors))
 
 
-# ------------------------------------------------------------ v0.2 (legacy)
-def verify_v02(rec: dict, pub_pem: str) -> dict:
+# ------------------------------------------------------------ v0.2 (legacy, opt-in)
+def verify_legacy_v02(rec: dict, keyset: dict | None = None, pub_pem: str | None = None) -> dict:
+    """SPEC §11.1. Signature-only legacy rules, but with the v1.0 key rules."""
+    errors = number_errors(rec)
+    if errors:
+        return _invalid(rec, errors)
+    errors = schema_errors(V02_SCHEMA, V02_SCHEMA, rec)
+    if not errors and ts_ms(rec["checkedAt"]) is None:
+        errors = ["BAD_TIMESTAMP:/checkedAt"]
+    if errors:
+        return _invalid(rec, errors)
+    warnings: list[str] = []
+    sig = rec["signature"]
+    key_id = sig["key_id"]
+    issued = ts_ms(rec["checkedAt"])
+    pem = None
+    if keyset is not None:
+        kerr = keyset_errors(keyset)
+        if kerr:
+            return _invalid(rec, kerr)
+        entry = next((k for k in keyset["keys"] if k["key_id"] == key_id), None)
+        if entry is None:
+            errors.append("UNKNOWN_KEY")  # never fall back to the demo key when a keyset is given
+        else:
+            pem = entry["public_key_pem"]
+            if not (ts_ms(entry["valid_from"]) <= issued < ts_ms(entry["valid_until"])):
+                errors.append("KEY_NOT_VALID_AT_ISSUANCE")
+            if entry["status"] == "revoked":
+                errors.append("KEY_REVOKED")  # any reason: v0.2 has no trustworthy issuance time
+    elif pub_pem is not None:
+        pem = pub_pem
+        warnings.append("NO_KEYSET_VALIDITY_NOT_CHECKED")
+    else:
+        pem = (HERE / "demo-pub.pem").read_text()
+        warnings.append("DEMO_KEY_ASSUMED")
     body = copy.deepcopy(rec)
-    sig = body.pop("signature")
+    body.pop("signature")
     canon = canonicalize(body)
     digest = sha256_hex(canon)
-    raw = decode_sig(sig.get("sig_base64"))
-    if raw is None:
-        return _result("INVALID", rec.get("schema_version"), digest, sig.get("key_id"), ["NONCANONICAL_SIGNATURE"])
-    ok = ed25519_verify(pub_pem, canon, raw)
-    warnings = ["EMBEDDED_SHA256_MISMATCH"] if sig.get("sha256") and sig["sha256"] != digest else []
-    return _result("VALID" if ok else "INVALID", rec.get("schema_version"), digest, sig.get("key_id"),
-                   [] if ok else ["BAD_SIGNATURE"], warnings, [], rec.get("example_data") is True)
+    sig_ok = False
+    if pem is not None:
+        raw = decode_sig(sig["sig_base64"])
+        sig_ok = raw is not None and ed25519_verify(pem, canon, raw)
+        if not sig_ok:
+            errors.insert(0, "BAD_SIGNATURE")
+    if sig.get("sha256") and sig["sha256"] != digest:
+        warnings.append("EMBEDDED_SHA256_MISMATCH")
+    valid = sig_ok and not errors
+    if valid:
+        warnings.append("LEGACY_V02_SIGNATURE_ONLY")
+    return _result("VALID" if valid else "INVALID", rec["schema_version"], digest, key_id,
+                   _uniq(errors), warnings, [], rec.get("example_data") is True)
 
 
 # ------------------------------------------------------------ v1.0
@@ -500,15 +675,21 @@ def verify_v10(rec: dict, keyset: dict | None = None, pub_pem: str | None = None
 
 def verify_record(rec, keyset: dict | None = None, keyset_bytes: bytes | None = None,
                   keyset_sha256: str | None = None, pub_pem: str | None = None,
-                  binding_inputs: dict | None = None, linked: list | None = None) -> dict:
-    """Verify one record. Never raises for bad input; returns status VALID or INVALID."""
+                  binding_inputs: dict | None = None, linked: list | None = None,
+                  allow_legacy_v02: bool = False) -> dict:
+    """Verify one record, given as JSON text (preferred) or a parsed object.
+
+    Never raises for bad input; returns status VALID or INVALID."""
+    if isinstance(rec, (str, bytes)):
+        rec, perr = parse_json_text(rec)
+        if perr:
+            return _invalid(rec, perr)
     if keyset_bytes is not None:
         if keyset_sha256 is not None and sha256_hex(keyset_bytes) != keyset_sha256.lower():
             return _invalid(rec, ["KEYSET_SHA256_MISMATCH"])
-        try:
-            keyset = json.loads(keyset_bytes.decode("utf-8"))
-        except ValueError:
-            return _invalid(rec, ["SCHEMA_VIOLATION:keyset#"])
+        keyset, kperr = parse_json_text(keyset_bytes)
+        if kperr:
+            return _invalid(rec, [e.split(":", 1)[0] + ":keyset#" + (e.split(":", 1)[1] if ":" in e else "") for e in kperr])
     elif keyset_sha256 is not None:
         raise ValueError("keyset_sha256 needs keyset_bytes (the anchor is over the exact file bytes)")
     if not isinstance(rec, dict) or not isinstance(rec.get("signature"), dict):
@@ -517,15 +698,9 @@ def verify_record(rec, keyset: dict | None = None, keyset_bytes: bytes | None = 
     if v == SCHEMA_VERSION:
         return verify_v10(rec, keyset=keyset, pub_pem=pub_pem, binding_inputs=binding_inputs, linked=linked)
     if v == LEGACY_V02:
-        pem = pub_pem
-        if pem is None and keyset is not None:
-            kerr = keyset_errors(keyset)
-            if kerr:
-                return _invalid(rec, kerr)
-            pem = next((k["public_key_pem"] for k in keyset["keys"] if k["key_id"] == rec["signature"].get("key_id")), None)
-        if pem is None:
-            pem = (HERE / "demo-pub.pem").read_text()
-        return verify_v02(rec, pem)
+        if not allow_legacy_v02:
+            return _invalid(rec, ["LEGACY_V02_NOT_ENABLED"])
+        return verify_legacy_v02(rec, keyset=keyset, pub_pem=pub_pem)
     return _invalid(rec, ["UNSUPPORTED_SCHEMA_VERSION"])
 
 
@@ -537,9 +712,15 @@ def main() -> None:
     ap.add_argument("--keyset-sha256", help="expected hex SHA-256 of the keyset file bytes (anchor from the release notes)")
     ap.add_argument("--binding-inputs")
     ap.add_argument("--linked", nargs="*", default=[])
+    ap.add_argument("--allow-legacy-v02", action="store_true",
+                    help="also accept legacy 0.2-draft records (signature only, SPEC §11.1)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
-    rec = json.loads(Path(a.record).read_text(encoding="utf-8"))
+    text = Path(a.record).read_bytes()
+    try:
+        rec = json.loads(text)
+    except ValueError:
+        rec = None
     kw: dict = {}
     if a.pubkey:
         kw["pub_pem"] = Path(a.pubkey).read_text()
@@ -550,7 +731,7 @@ def main() -> None:
         kw["binding_inputs"] = json.loads(Path(a.binding_inputs).read_text(encoding="utf-8"))
     if a.linked:
         kw["linked"] = [json.loads(Path(p).read_text(encoding="utf-8")) for p in a.linked]
-    res = verify_record(rec, **kw)
+    res = verify_record(text, allow_legacy_v02=a.allow_legacy_v02, **kw)
     if a.json:
         print(json.dumps(res, indent=2))
     else:
