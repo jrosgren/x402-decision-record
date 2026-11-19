@@ -1,6 +1,6 @@
 # Third-party verifier for an AgentTrust decision record
 
-**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. This folder verifies format v1.0 (release candidate, see [`../SPEC.md`](../SPEC.md)) and, only when you ask for it, legacy v0.2-draft. The freeze as v1.0 is planned on 24.11.2026, with release v1.0.0 by 25.11.2026.
+**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. This folder verifies format v1.0 (release v1.0.0, see [`../SPEC.md`](../SPEC.md)) and, only when you ask for it, legacy v0.2-draft.
 
 A third party can check that a record has not been changed since it was signed, without access to Polkulab systems and without trusting Polkulab's own logs. Verification uses only the record, the public key, and open algorithms.
 

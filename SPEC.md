@@ -1,6 +1,6 @@
-# x402 pre-payment decision record: v1.0 (release candidate)
+# x402 pre-payment decision record: v1.0
 
-**Status: v1.0 release candidate, open for review.** This text was v0.3-draft (PR #1) and now carries the fixes from the 19.11 review. It is planned to be frozen as **v1.0 on 24.11.2026**, with a tagged release **v1.0.0 by 25.11.2026** (JSON Schema, changelog, test vectors and verifiers). Comments before then are welcome in the PR or the x402 Slack thread.
+**Status: v1.0, final.** Released as **v1.0.0 on 19.11.2026** (JSON Schema, changelog, test vectors and verifiers). This text was v0.3-draft (PR #1) and carries the fixes from the 19.11 reviews. Comments remain welcome in a GitHub issue or the x402 Slack thread; see §12.0 for how they are handled.
 
 **EXAMPLE DATA ONLY.** All records, keys, wallets and URLs in this repository are made-up illustrations. The demo key `polkulab-demo-2026-11` signs example records only. Payvetted is pre-launch and issues no production records yet.
 
@@ -248,6 +248,10 @@ v0.2 records carry no payment binding, timeline or evidence hashes, so a VALID v
 
 ## 12. Changelog
 
+### 12.0 v1.0.0 (19.11.2026) and what comes next
+
+v1.0.0 is final: the record format, schemas, error codes and test vectors of this release do not change. Comments received before 23.11.2026 from the x402 Slack reviewers or from underwriters will go into **v1.0.1 or v1.1**, as **additive** changes only (new optional fields, new check ids, new info or warning codes, more test vectors). A record that is VALID under v1.0.0 stays VALID. Anything that would break that needs a v2.0.
+
 ### 12.1 Changes from the v0.3-draft review (19.11)
 
 - **Strict signature object** (review M1): exactly `alg`, `key_id`, `sig_base64`; `canonicalization` and `sha256` removed; canonical base64 and `S < L` required on every path. Without this, a third party could change `jcs(record)` of a valid record in five ways.
@@ -293,10 +297,10 @@ Optional items from the approval of `96ecab0` (19.11): binding inputs and linked
 - **Signature object (changed)**: exactly `alg`, `key_id`, `sig_base64`; v0.2's unsigned `canonicalization` and `sha256` members are gone.
 - **Unchanged**: the signature method (Ed25519 over the JCS of the record without `signature`) and the demo key id `polkulab-demo-2026-11`.
 
-## 13. Questions before the v1.0 freeze on 24.11
+## 13. Questions resolved for v1.0
 
 - **Q1. Should the keyset be signed by a root key?** Resolved (Ella 19.11): no root key in v1.0. The keyset is published in two places, with a SHA-256 anchor in the release notes. `keyset_signature` is reserved for a v1.1 KMS root key. See §9.2.
 - **Q2. Should links hash a decision record with or without its signature?** Resolved (Ella 19.11): with. The input id is `jcs(record)`. The strict signature rules in §3 keep the hash stable. See §6.
 - **Q3. Should non-EVM schemes be covered now?** Resolved (Ella 19.11): v1.0 covers EVM/Base only, with CAIP-2 `eip155:<chain id>`. Solana and other non-EVM schemes come in v1.1. See §4.
 - **Q4. Should there be a check-id registry?** Resolved (Ella 19.11): a minimal registry plus an `x-<issuer>.` prefix for custom checks, and verifiers ignore unknown ids. See §6.2.
-- **Q5. Which fields do underwriters need that are still missing?** **Open.** We are waiting for input from an underwriting reviewer. Comments are welcome before 23.11.
+- **Q5. Which fields do underwriters need that are still missing?** **Open, after v1.0.** Underwriter input received before 23.11.2026 goes into v1.0.1 or v1.1 as additive fields (§12.0).

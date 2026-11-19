@@ -17,9 +17,9 @@ The idea is that a platform, an auditor or an insurer could verify the record la
 
 This is a question, not a finished proposal: would a shared format be useful, or is this better left to each facilitator?
 
-## v1.0 (release candidate)
+## v1.0
 
-[`SPEC.md`](./SPEC.md) describes v1.0, which was v0.3-draft and was shaped by feedback in the x402 Slack and a review on 19.11. The record is bound to one x402 v2 payment through the hash of the authorization nonce, and each check has a timestamp and an evidence hash. Each hash states exactly which bytes it covers, and each field carries an evidence ceiling. Other records can be linked by hash, a not-covered list says what the record does not attest, and the keys have rotation and revocation rules. The signature object is strict (exactly `alg`, `key_id`, `sig_base64`, canonical base64, `S < L`), so the hash of a signed record cannot be changed by a third party. It comes with a JSON Schema in [`schema/`](./schema/), signed positive and negative test vectors in [`test-vectors/v1.0/`](./test-vectors/v1.0/) with one shared [`expected.json`](./test-vectors/v1.0/expected.json), and two verifiers that give identical results on every vector. **Freeze as v1.0 is planned on 24.11.2026, with release v1.0.0 by 25.11.2026.**
+[`SPEC.md`](./SPEC.md) describes v1.0, which was v0.3-draft and was shaped by feedback in the x402 Slack and a review on 19.11. The record is bound to one x402 v2 payment through the hash of the authorization nonce, and each check has a timestamp and an evidence hash. Each hash states exactly which bytes it covers, and each field carries an evidence ceiling. Other records can be linked by hash, a not-covered list says what the record does not attest, and the keys have rotation and revocation rules. The signature object is strict (exactly `alg`, `key_id`, `sig_base64`, canonical base64, `S < L`), so the hash of a signed record cannot be changed by a third party. It comes with a JSON Schema in [`schema/`](./schema/), signed positive and negative test vectors in [`test-vectors/v1.0/`](./test-vectors/v1.0/) with one shared [`expected.json`](./test-vectors/v1.0/expected.json), and two verifiers that give identical results on every vector. **Released as v1.0.0 on 19.11.2026.** Comments received before 23.11.2026 go into v1.0.1 or v1.1 as additive changes (SPEC §12.0).
 
 Demo keyset anchor (SHA-256 of [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json)): `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`
 
@@ -28,7 +28,7 @@ Demo keyset anchor (SHA-256 of [`.well-known/x402-decision-keyset.json`](./.well
 - [`sample-decision-record.json`](./sample-decision-record.json) — an example record (example data only)
 - [`sample-decision-record-fields.md`](./sample-decision-record-fields.md) — field guide
 - **Try it online:** [jrosgren.github.io/x402-decision-record/verifier/verify.html](https://jrosgren.github.io/x402-decision-record/verifier/verify.html) — loads the valid and tampered examples; all checking happens in your browser.
-- [`SPEC.md`](./SPEC.md) — v1.0 spec (release candidate) and changelog
+- [`SPEC.md`](./SPEC.md) — v1.0 spec and changelog
 - [`schema/`](./schema/) — JSON Schema 2020-12 for the record and the keyset
 - [`test-vectors/v1.0/`](./test-vectors/v1.0/) — signed positive and negative vectors (example data), listed with expected results in `expected.json`
 - [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json): demo keyset at its published location (primary copy, served by GitHub Pages)
