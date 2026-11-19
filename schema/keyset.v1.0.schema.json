@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jrosgren/x402-decision-record/schema/keyset.v1.0.schema.json",
+  "title": "Decision-record signing keyset, v1.0",
+  "description": "See SPEC §9. key_id MUST be unique within a keyset (verifiers reject duplicates with DUPLICATE_KEY_ID; JSON Schema cannot express this). x-error-code is an annotation, see the record schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["keyset_version", "issuer", "published_at", "keys"],
+  "properties": {
+    "_note": {"type": "string"},
+    "keyset_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_KEYSET_VERSION"},
+    "example_data": {"type": "boolean"},
+    "issuer": {"type": "string", "minLength": 1, "format": "uri"},
+    "published_at": {"$ref": "#/$defs/timestamp"},
+    "keyset_signature": {
+      "type": ["object", "null"],
+      "description": "RESERVED for v1.1 (signature by a KMS-held root key). Not used in v1.0: issuers SHOULD omit it and v1.0 verifiers MUST ignore it."
+    },
+    "keys": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key_id", "alg", "public_key_pem", "valid_from", "valid_until", "status"],
+        "properties": {
+          "key_id": {"type": "string", "minLength": 1},
+          "alg": {"const": "Ed25519"},
+          "public_key_pem": {"type": "string", "pattern": "^-----BEGIN PUBLIC KEY-----"},
+          "valid_from": {"$ref": "#/$defs/timestamp"},
+          "valid_until": {"$ref": "#/$defs/timestamp"},
+          "status": {"enum": ["active", "retired", "revoked"]},
+          "revoked_at": {"$ref": "#/$defs/timestamp"},
+          "revocation_reason": {"enum": ["key_compromise", "superseded"]},
+          "purpose": {"type": "string"}
+        },
+        "if": {"properties": {"status": {"const": "revoked"}}, "required": ["status"]},
+        "then": {"required": ["revoked_at", "revocation_reason"]}
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "Same format as in the record schema."}
+  }
+}

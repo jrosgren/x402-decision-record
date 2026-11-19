@@ -1,0 +1,215 @@
+{
+  "schema_version": "1.0",
+  "record_type": "x402-pre-payment-decision",
+  "record_id": "at_dr_example_v10_000003",
+  "example_data": true,
+  "issuer": "https://trypolkulab.com",
+  "signing_key": {
+    "key_id": "polkulab-demo-2026-11",
+    "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
+  },
+  "payment": {
+    "x402_version": 2,
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "asset": "0x0000000000000000000000000000000000000003",
+    "asset_symbol": "USDC",
+    "asset_decimals": 6,
+    "amount_atomic": "4500000",
+    "payer": "0x0000000000000000000000000000000000000001",
+    "payee": "0x0000000000000000000000000000000000000002",
+    "resource": "https://api.example-seller.test/v1/report",
+    "authorization": {
+      "nonce_sha256": {
+        "alg": "sha-256",
+        "input": "eip3009-nonce-bytes32",
+        "hex": "1e69a726790da06715fa2df707d84f1e100b3471258599c8c2a80a5646d6965a"
+      },
+      "valid_after": "2027-01-15T08:59:00Z",
+      "valid_before": "2027-01-15T09:05:00Z"
+    },
+    "payment_requirements_sha256": {
+      "alg": "sha-256",
+      "input": "jcs(payment_requirements)",
+      "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+    },
+    "request_sha256": {
+      "alg": "sha-256",
+      "input": "jcs(resource_request)",
+      "hex": "4ce73a8537d58f8dc5e5f274b863b6f6b31ea836ece68d17d267a37c03c69421"
+    },
+    "tx_hash": null
+  },
+  "timeline": {
+    "requirements_received_at": "2027-01-15T09:00:00.000Z",
+    "authorization_presented_at": "2027-01-15T09:00:00.150Z",
+    "decision_issued_at": "2027-01-15T09:00:00.910Z"
+  },
+  "checks": [
+    {
+      "id": "endpoint.health",
+      "result": "pass",
+      "ran_at": "2027-01-15T09:00:00.210Z",
+      "evidence_ceiling": "recomputable_from_client_view",
+      "evidence_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(evidence)",
+        "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
+      },
+      "evidence": {
+        "http_status": 402,
+        "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+      }
+    },
+    {
+      "id": "terms.price_vs_listing",
+      "result": "warn",
+      "ran_at": "2027-01-15T09:00:00.260Z",
+      "evidence_ceiling": "recomputable_from_client_view",
+      "evidence_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(evidence)",
+        "hex": "40850443c2ee7cd238af63428db32a28ef150e003dde0582c495649bcbe60643"
+      },
+      "evidence": {
+        "requested_atomic": "4500000",
+        "listed_atomic": "3000000",
+        "listing_source": "https://api.example-seller.test/.well-known/x402-listing (example)",
+        "listing_sha256": "1dc084e36d94ae710200759f4b63dc47717345ebf9553bc850eee0bd056f6a56"
+      }
+    },
+    {
+      "id": "payto.change",
+      "result": "pass",
+      "ran_at": "2027-01-15T09:00:00.300Z",
+      "evidence_ceiling": "issuer_assertion",
+      "evidence_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(evidence)",
+        "hex": "40967b8d734f4d577d47e3db8260fc0488501e6446d88ee3e918a64ebe4953c3"
+      },
+      "evidence": {
+        "payto_first_seen_at": "2026-11-13T10:00:00Z",
+        "changes_since_first_seen": 0
+      }
+    },
+    {
+      "id": "payee.wallet_risk",
+      "result": "warn",
+      "ran_at": "2027-01-15T09:00:00.640Z",
+      "evidence_ceiling": "recomputable_from_chain",
+      "evidence_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(evidence)",
+        "hex": "9f9e76acb8bbb99013df6b138bb0ea132b3261a33bc817c363b0a61f9fedf9f0"
+      },
+      "evidence": {
+        "network": "eip155:8453",
+        "first_tx_block": 22000000,
+        "first_tx_hash": "0xabababababababababababababababababababababababababababababababab",
+        "age_days_at_check": 6
+      }
+    },
+    {
+      "id": "x-polkulab.sanctions_list",
+      "result": "pass",
+      "ran_at": "2027-01-15T09:00:00.700Z",
+      "evidence_ceiling": "issuer_assertion",
+      "evidence_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(evidence)",
+        "hex": "26b0de9677fe5d6fff4be38d85189680c587899cfdd00ed8a9c94e51f73f8785"
+      },
+      "evidence": {
+        "list": "OFAC SDN (digital currency addresses)",
+        "list_snapshot_date": "2026-11-18",
+        "list_snapshot_sha256": "a432ebe7393a9647de2b2defdf70bfc3f53d3fb6979eebc00a4c2090ffa12180",
+        "match": false
+      }
+    }
+  ],
+  "decision": {
+    "verdict": "warn",
+    "score": 62,
+    "level": "medium",
+    "reason_codes": [
+      "PAYEE_NEW",
+      "PRICE_ABOVE_LISTING"
+    ],
+    "policy_id": "policy:default-v1",
+    "payer_agent_id": "agent:example-buyer-01"
+  },
+  "field_evidence_ceilings": {
+    "/payment/network": "recomputable_from_client_view",
+    "/payment/asset": "recomputable_from_client_view",
+    "/payment/amount_atomic": "recomputable_from_client_view",
+    "/payment/payer": "recomputable_from_client_view",
+    "/payment/payee": "recomputable_from_client_view",
+    "/payment/resource": "recomputable_from_client_view",
+    "/payment/authorization": "recomputable_from_client_view",
+    "/payment/payment_requirements_sha256": "recomputable_from_client_view",
+    "/payment/request_sha256": "recomputable_from_client_view",
+    "/payment/tx_hash": "recomputable_from_chain",
+    "/timeline": "issuer_assertion",
+    "/decision": "issuer_assertion"
+  },
+  "links": [
+    {
+      "rel": "content_time_record",
+      "issuer": "https://content-time.example.test",
+      "record_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(linked-record)",
+        "hex": "56b58837370e68a20b39ffca5ab742300ef433d12fd2c86b0456c02206e0baa7"
+      },
+      "evidence_ceiling": "issuer_assertion"
+    },
+    {
+      "rel": "seller_attestation",
+      "issuer": "https://attest.example-registry.test",
+      "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+      "expires_at": "2026-12-10T00:00:00Z",
+      "record_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(linked-record)",
+        "hex": "cb82f757ca96aadf45fed13b88b54d2ffc3b375990dd1b870f4b96ff213847fe"
+      },
+      "evidence_ceiling": "issuer_assertion"
+    }
+  ],
+  "not_covered": [
+    {
+      "code": "SETTLEMENT",
+      "text": "Whether or when the payment settled. The record is signed before settlement; tx_hash is null and settlement is attested by a separate linked record."
+    },
+    {
+      "code": "RESOURCE_DELIVERY",
+      "text": "Whether the seller delivered the resource after payment."
+    },
+    {
+      "code": "RESOURCE_QUALITY",
+      "text": "Whether the delivered content was correct, fresh or fit for purpose."
+    },
+    {
+      "code": "PAYEE_LEGAL_IDENTITY",
+      "text": "Who legally owns the payee wallet. No KYC/KYB was performed."
+    },
+    {
+      "code": "LISTS_NOT_CHECKED",
+      "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."
+    },
+    {
+      "code": "PRINCIPAL_AUTHORIZATION",
+      "text": "Whether the human or organisation behind the payer agent approved this payment."
+    },
+    {
+      "code": "FUTURE_STATE",
+      "text": "Anything that happened after decision_issued_at."
+    }
+  ],
+  "signature": {
+    "alg": "Ed25519",
+    "key_id": "polkulab-demo-2026-11",
+    "sig_base64": "nmSumJ7c3+POAglw0JeGiDhWEJsIBGk0GlQuVAfK/ydXiS/3OHPhrQQKk9oyF46jRzWnCenWL40FM9rsbfsKAg=="
+  }
+}

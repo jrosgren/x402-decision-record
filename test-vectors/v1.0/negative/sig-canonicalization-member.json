@@ -1,7 +1,7 @@
 {
-  "schema_version": "0.3-draft",
+  "schema_version": "1.0",
   "record_type": "x402-pre-payment-decision",
-  "record_id": "at_dr_example_v03_000002",
+  "record_id": "at_dr_example_v10_000001",
   "example_data": true,
   "issuer": "https://trypolkulab.com",
   "signing_key": {
@@ -9,7 +9,7 @@
     "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
   },
   "payment": {
-    "x402_version": 1,
+    "x402_version": 2,
     "scheme": "exact",
     "network": "eip155:8453",
     "asset": "0x0000000000000000000000000000000000000003",
@@ -31,7 +31,7 @@
     "payment_requirements_sha256": {
       "alg": "sha-256",
       "input": "jcs(payment_requirements)",
-      "hex": "f0637a9ac3f2b1ef6f6e1ba6bf548677b864faf3715ee8020291a78e7476d80e"
+      "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
     },
     "request_sha256": {
       "alg": "sha-256",
@@ -54,11 +54,11 @@
       "evidence_sha256": {
         "alg": "sha-256",
         "input": "jcs(evidence)",
-        "hex": "b70dfc92757a9a761d1032807abfc337228e290bbd32c95c708ea5afc5a7acfb"
+        "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
       },
       "evidence": {
         "http_status": 402,
-        "payment_requirements_sha256": "f0637a9ac3f2b1ef6f6e1ba6bf548677b864faf3715ee8020291a78e7476d80e"
+        "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
       }
     },
     {
@@ -210,8 +210,7 @@
   "signature": {
     "alg": "Ed25519",
     "key_id": "polkulab-demo-2026-11",
-    "canonicalization": "RFC 8785 (JCS) of the record without the signature member",
-    "sha256": "a61ac789e0747cb8209a73d25e4728f2c561b94956f57b98a6451e019c7cdc76",
-    "sig_base64": "mgTLg8wATkBzKZUoj3eOTB2kjg0CEcg76Xx1ZIzB5jPVKJCK0gtoljZ+KOzuD8ofiy4jm9840Zpg+ECdPrziAA=="
+    "sig_base64": "2QbU1bC558wjZGkE3bQaH7sK9n1BpgF7uByR2TKwd//+gOzJk1H9m3B0MGVlg8tyQ5Z7zc/S8MUh4RhO4FajBw==",
+    "canonicalization": "RFC8785"
   }
 }

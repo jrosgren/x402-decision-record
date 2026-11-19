@@ -11,7 +11,7 @@
       "record_sha256": {
         "alg": "sha-256",
         "input": "jcs(record)",
-        "hex": "4c23c565f1c81ab18b0b493f65df2402380f2bea871b2ac78e5ad781f6361f4a"
+        "hex": "c84f6663d26c90b0f2d2401f1ae1a6cc1834fee537e539261e5dfa45fd1e52e0"
       },
       "evidence_ceiling": "issuer_assertion"
     }

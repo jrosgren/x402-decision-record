@@ -1,7 +1,7 @@
 {
-  "schema_version": "0.3-draft",
+  "schema_version": "1.0",
   "record_type": "x402-pre-payment-decision",
-  "record_id": "at_dr_example_v03_000001",
+  "record_id": "at_dr_neg_pointer",
   "example_data": true,
   "issuer": "https://trypolkulab.com",
   "signing_key": {
@@ -9,7 +9,7 @@
     "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
   },
   "payment": {
-    "x402_version": 1,
+    "x402_version": 2,
     "scheme": "exact",
     "network": "eip155:8453",
     "asset": "0x0000000000000000000000000000000000000003",
@@ -31,7 +31,7 @@
     "payment_requirements_sha256": {
       "alg": "sha-256",
       "input": "jcs(payment_requirements)",
-      "hex": "f0637a9ac3f2b1ef6f6e1ba6bf548677b864faf3715ee8020291a78e7476d80e"
+      "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
     },
     "request_sha256": {
       "alg": "sha-256",
@@ -54,11 +54,11 @@
       "evidence_sha256": {
         "alg": "sha-256",
         "input": "jcs(evidence)",
-        "hex": "b70dfc92757a9a761d1032807abfc337228e290bbd32c95c708ea5afc5a7acfb"
+        "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
       },
       "evidence": {
         "http_status": 402,
-        "payment_requirements_sha256": "f0637a9ac3f2b1ef6f6e1ba6bf548677b864faf3715ee8020291a78e7476d80e"
+        "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
       }
     },
     {
@@ -151,7 +151,8 @@
     "/payment/request_sha256": "recomputable_from_client_view",
     "/payment/tx_hash": "recomputable_from_chain",
     "/timeline": "issuer_assertion",
-    "/decision": "issuer_assertion"
+    "/decision": "issuer_assertion",
+    "/payment/does_not_exist": "issuer_assertion"
   },
   "links": [
     {
@@ -210,8 +211,6 @@
   "signature": {
     "alg": "Ed25519",
     "key_id": "polkulab-demo-2026-11",
-    "canonicalization": "RFC 8785 (JCS) of the record without the signature member",
-    "sha256": "8ca296a145841d8293ec996eca26d15014e46efc7db535f2e2a14a1e0db88f9e",
-    "sig_base64": "9qOxSkYafio+OE2IIzWX9l82wOST8QqvGkFKhpe92CsBmXP/1dwnY3KEM2nIsBfkLLf4YZziPbWio7b4VqDnCQ=="
+    "sig_base64": "p99vPQ9gmjYwkYef+iUbUJ/MVGY6zhtKB2/v+Dj5fcQfpXZ7wtmyGNdPNQaWXfPUoNgYRj5LVM6w/0aXD83rDA=="
   }
 }

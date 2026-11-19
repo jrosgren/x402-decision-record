@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Tests for the Python verifier against v0.2 and v0.3 vectors (example data).
+"""Tests for the Python verifier against the v1.0 and v0.2 vectors (example data).
 
 Run: python3 -m unittest discover -s tests -v
-Schema tests run when the jsonschema package is installed; otherwise skipped.
+Needs rfc8785 (verify.py requires it) and jsonschema (pip install rfc8785 jsonschema cryptography).
+The vector cases come from test-vectors/v1.0/expected.json, the same list the Node test runs.
 """
 import copy
 import json
@@ -11,196 +12,179 @@ import sys
 import unittest
 from pathlib import Path
 
+import jsonschema  # required: run_all.sh fails if it is missing (no silently skipped schema tests)
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "verifier"))
 import verify  # noqa: E402
 
-TV = ROOT / "test-vectors" / "v0.3"
+TV = ROOT / "test-vectors" / "v1.0"
+EXP = json.loads((TV / "expected.json").read_text(encoding="utf-8"))
 
 
 def load(p):
     return json.loads(Path(p).read_text(encoding="utf-8"))
 
 
-KEYSET = load(TV / "keyset-demo.json")
-REVOKED = load(TV / "keyset-revoked.json")
-BINDING = load(TV / "binding-inputs.json")
-LINKED = [load(p) for p in sorted((TV / "linked").glob("*.json"))]
+def run_case(c):
+    kw = {}
+    if c["keyset"]:
+        kw["keyset_bytes"] = (TV / c["keyset"]).read_bytes()
+    if c.get("keyset_sha256"):
+        kw["keyset_sha256"] = c["keyset_sha256"]
+    if c.get("binding_inputs"):
+        kw["binding_inputs"] = load(TV / c["binding_inputs"])
+    if c.get("linked"):
+        kw["linked"] = [load(TV / p) for p in c["linked"]]
+    return verify.verify_record(load(TV / c["record"]), **kw)
 
 
-class V02(unittest.TestCase):
-    def test_valid(self):
-        r = verify.verify_record(load(ROOT / "verifier/record-valid.json"))
-        self.assertEqual(r["status"], "VALID")
-        self.assertEqual(r["sha256"], "f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0")
+class ExpectedCases(unittest.TestCase):
+    def test_cases(self):
+        self.assertGreaterEqual(len(EXP["cases"]), 50)
+        for c in EXP["cases"]:
+            with self.subTest(c["name"]):
+                r = run_case(c)
+                self.assertEqual(r["status"], c["status"], r)
+                self.assertEqual(sorted(r["errors"]), c["errors"], r)
+                self.assertEqual(sorted(r["warnings"]), c["warnings"], r)
+                for i in c.get("info_includes", []):
+                    self.assertIn(i, r["info"], r)
+                if c.get("sha256"):
+                    self.assertEqual(r["sha256"], c["sha256"])
 
-    def test_tampered(self):
-        self.assertEqual(verify.verify_record(load(ROOT / "verifier/record-tampered.json"))["status"], "INVALID")
+    def test_every_vector_file_is_used(self):
+        used = set()
+        for c in EXP["cases"]:
+            used |= {c["record"], c["keyset"], c.get("binding_inputs")} | set(c.get("linked") or [])
+        files = {str(p.relative_to(TV)) for p in TV.rglob("*.json")} - {"expected.json", "example-outcome-record.json"}
+        self.assertEqual(files - used, set())
 
-    def test_cli_positional_pubkey(self):
-        p = subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), str(ROOT / "verifier/record-valid.json"),
-                            str(ROOT / "verifier/demo-pub.pem")], capture_output=True, text=True)
+
+class Schema(unittest.TestCase):
+    """The verifiers' built-in validator must agree with a full JSON Schema implementation."""
+
+    def test_schemas_are_valid_2020_12(self):
+        for s in ("decision-record.v1.0.schema.json", "keyset.v1.0.schema.json"):
+            jsonschema.Draft202012Validator.check_schema(load(ROOT / "schema" / s))
+            self.assertEqual((ROOT / "schema" / s).read_bytes(), (ROOT / "verifier" / s).read_bytes())
+
+    def test_builtin_validator_agrees_with_jsonschema(self):
+        rv = jsonschema.Draft202012Validator(verify.RECORD_SCHEMA)
+        kv = jsonschema.Draft202012Validator(verify.KEYSET_SCHEMA)
+        n = 0
+        for p in sorted(TV.rglob("*.json")):
+            doc = load(p)
+            if not isinstance(doc, dict) or verify.number_errors(doc):
+                continue
+            if "keyset_version" in doc:
+                mine, full = verify.schema_errors(verify.KEYSET_SCHEMA, verify.KEYSET_SCHEMA, doc), kv.is_valid(doc)
+            elif doc.get("record_type") == "x402-pre-payment-decision":
+                mine, full = verify.schema_errors(verify.RECORD_SCHEMA, verify.RECORD_SCHEMA, doc), rv.is_valid(doc)
+            else:
+                continue
+            self.assertEqual(mine == [], full, (p.name, mine))
+            n += 1
+        self.assertGreater(n, 35)
+
+    def test_custom_check_ids_schema_valid(self):
+        v = jsonschema.Draft202012Validator(verify.RECORD_SCHEMA)
+        rec = load(TV / "valid.json"); rec["checks"][0]["id"] = "x-acme.my_check"
+        self.assertTrue(v.is_valid(rec))
+        rec["checks"][0]["id"] = "Bad Id"
+        self.assertFalse(v.is_valid(rec))
+
+
+class Primitives(unittest.TestCase):
+    def test_jcs_sorts_by_utf16(self):
+        # B1: U+1F600 (surrogates D83D DE00) sorts before U+E000 in JCS
+        self.assertEqual(verify.canonicalize({"\ue000": 1, "\U0001F600": 2}).decode(), '{"\U0001F600":2,"\ue000":1}')
+
+    def test_timestamps(self):
+        self.assertEqual(verify.ts_ms("1970-01-01T00:00:00Z"), 0)
+        self.assertEqual(verify.ts_ms("2026-11-19T09:00:00.910Z") - verify.ts_ms("2026-11-19T09:00:00Z"), 910)
+        for bad in ("2026-11-19T09:00:00.91Z", "2026-11-19T09:00:00.910", "2026-11-19T09:00:00+00:00",
+                    "2026-02-29T00:00:00Z", "2026-11-19T24:00:00Z", "2026-11-19T09:00:00Z\n"):
+            self.assertIsNone(verify.ts_ms(bad), bad)
+        self.assertIsNotNone(verify.ts_ms("2028-02-29T00:00:00Z"))
+
+    def test_strict_base64_and_s_below_l(self):
+        s = load(TV / "valid.json")["signature"]["sig_base64"]
+        self.assertIsNotNone(verify.decode_sig(s))
+        self.assertIsNone(verify.decode_sig(s[:-3] + " " + s[-2:]))
+        self.assertIsNone(verify.decode_sig(load(TV / "negative/sig-noncanonical-base64.json")["signature"]["sig_base64"]))
+        raw = verify.decode_sig(load(TV / "negative/sig-s-plus-l.json")["signature"]["sig_base64"])
+        self.assertGreaterEqual(int.from_bytes(raw[32:], "little"), verify.ED25519_L)
+
+    def test_no_exceptions_on_garbage(self):
+        for rec in ([], "x", {"signature": "x"}, {"schema_version": "1.0", "signature": {}}, {"schema_version": None, "signature": {}}):
+            self.assertEqual(verify.verify_record(rec)["status"], "INVALID")
+
+
+class Cli(unittest.TestCase):
+    def run_cli(self, *args):
+        return subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), *map(str, args)], capture_output=True, text=True)
+
+    def test_v02_positional_pubkey(self):
+        p = self.run_cli(ROOT / "verifier/record-valid.json", ROOT / "verifier/demo-pub.pem")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertTrue(p.stdout.startswith("VALID"))
 
-
-class V03Vectors(unittest.TestCase):
-    def test_expected(self):
-        exp = load(TV / "expected.json")
-        for name, want in exp.items():
-            if name.startswith("_"):
-                continue
-            rec_name, _, ks_name = name.partition("+")
-            ks = load(TV / ks_name) if ks_name else KEYSET
-            r = verify.verify_record(load(TV / rec_name), keyset=ks, binding_inputs=BINDING, linked=LINKED)
-            self.assertEqual(r["status"], want["status"], (name, r))
-            if "reason" in want:
-                self.assertIn(want["reason"], r["errors"], (name, r))
-
-    def test_valid_full(self):
-        r = verify.verify_record(load(TV / "valid.json"), keyset=KEYSET, binding_inputs=BINDING, linked=LINKED)
-        self.assertEqual(r["errors"], [])
-        self.assertEqual(r["warnings"], [])
-        self.assertIn("BINDING_RECOMPUTED_OK", r["info"])
-        self.assertTrue(r["example_data"])
-
-    def test_default_keyset_cli(self):
-        p = subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), str(TV / "valid.json")],
-                           capture_output=True, text=True)
+    def test_v10_default_keyset(self):
+        p = self.run_cli(TV / "valid.json")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
-    def test_pubkey_only_warns(self):
-        r = verify.verify_record(load(TV / "valid.json"), pub_pem=(ROOT / "verifier/demo-pub.pem").read_text())
+    def test_v10_pubkey_only_warns(self):
+        p = self.run_cli(TV / "valid.json", ROOT / "verifier/demo-pub.pem", "--json")
+        r = json.loads(p.stdout)
         self.assertEqual(r["status"], "VALID")
         self.assertIn("NO_KEYSET_VALIDITY_NOT_CHECKED", r["warnings"])
 
-    def test_unknown_key(self):
-        rec = load(TV / "valid.json")
-        ks = copy.deepcopy(KEYSET)
-        ks["keys"][0]["key_id"] = "other"
-        self.assertIn("UNKNOWN_KEY", verify.verify_record(rec, keyset=ks)["errors"])
-
-    def test_superseded_key_still_valid_for_old_records(self):
-        ks = copy.deepcopy(KEYSET)
-        ks["keys"][0].update({"status": "revoked", "revoked_at": "2026-12-01T00:00:00Z", "revocation_reason": "superseded"})
-        r = verify.verify_record(load(TV / "valid.json"), keyset=ks)
-        self.assertEqual(r["status"], "VALID")
-        self.assertIn("KEY_SUPERSEDED_AFTER_ISSUANCE", r["warnings"])
-
-    def test_wrong_binding_inputs(self):
-        bi = copy.deepcopy(BINDING)
-        bi["authorization_nonce"] = "0x" + "00" * 32
-        bi["payment_requirements"]["payTo"] = "0x0000000000000000000000000000000000000009"
-        r = verify.verify_record(load(TV / "valid.json"), keyset=KEYSET, binding_inputs=bi)
-        self.assertEqual(r["status"], "INVALID")
-        self.assertIn("BINDING_HASH_MISMATCH:eip3009-nonce-bytes32", r["errors"])
-        self.assertIn("BINDING_FIELD_MISMATCH:payee", r["errors"])
-
-    def test_evidence_hash_checked_independently(self):
-        # Swap inline evidence; even ignoring the signature, the hash check must catch it.
-        rec = load(TV / "valid.json")
-        rec["checks"][0]["evidence"]["http_status"] = 200
-        r = verify.verify_record(rec, keyset=KEYSET)
-        self.assertIn("EVIDENCE_HASH_MISMATCH:endpoint.health", r["errors"])
-
-    def test_withheld_evidence_is_info(self):
-        rec = load(TV / "valid.json")
-        del rec["checks"][0]["evidence"]
-        r = verify.verify_record(rec, keyset=KEYSET)
-        self.assertIn("EVIDENCE_WITHHELD:endpoint.health", r["info"])
-        self.assertIn("BAD_SIGNATURE", r["errors"])  # removing it changes signed bytes
-
-    def test_signature_bytes_match_embedded_sha(self):
-        for f in ("valid.json", "wrong-key.json", "expired-key.json"):
-            rec = load(TV / f)
-            body = copy.deepcopy(rec)
-            body.pop("signature")
-            self.assertEqual(verify.sha256_hex(verify.canonicalize(body)), rec["signature"]["sha256"], f)
+    def test_v10_full_cli(self):
+        p = self.run_cli(TV / "valid.json", "--keyset", ROOT / ".well-known/x402-decision-keyset.json",
+                         "--keyset-sha256", EXP["keyset_anchor_sha256"], "--binding-inputs", TV / "binding-inputs.json",
+                         "--linked", TV / "linked/content-time-record.json", TV / "linked/seller-attestation.json", "--json")
+        r = json.loads(p.stdout)
+        self.assertEqual((r["status"], r["errors"], r["warnings"]), ("VALID", [], []), r)
+        self.assertIn("BINDING_RECOMPUTED_OK", r["info"])
+        p = self.run_cli(TV / "valid.json", "--keyset", ROOT / ".well-known/x402-decision-keyset.json", "--keyset-sha256", "0" * 64)
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("KEYSET_SHA256_MISMATCH", p.stdout)
 
 
-    def test_custom_and_unknown_check_ids_do_not_invalidate(self):
-        r = verify.verify_record(load(TV / "valid.json"), keyset=KEYSET)
-        self.assertEqual(r["status"], "VALID")
-        self.assertIn("CUSTOM_CHECK_ID:x-polkulab.sanctions_list", r["info"])
-        # an unregistered id inside a validly signed record: verifier must ignore, not reject
-        rec = load(TV / "valid.json")
-        rec["checks"][0]["id"] = "some.future_check"
-        r = verify.verify_record(rec, pub_pem=(ROOT / "verifier/demo-pub.pem").read_text())
-        self.assertIn("UNKNOWN_CHECK_ID:some.future_check", r["info"])
-        self.assertNotIn("UNKNOWN_CHECK_ID:some.future_check", r["errors"])
-        self.assertEqual([e for e in r["errors"] if "CHECK_ID" in e], [])
+class Publication(unittest.TestCase):
+    def test_keyset_copies_identical_and_anchor(self):
+        a = (ROOT / ".well-known/x402-decision-keyset.json").read_bytes()
+        self.assertEqual(a, (ROOT / "verifier/demo-keyset.json").read_bytes())
+        self.assertEqual(a, (TV / "keyset-demo.json").read_bytes())
+        self.assertTrue((ROOT / ".nojekyll").exists())
+        self.assertEqual(verify.sha256_hex(a), EXP["keyset_anchor_sha256"])
+        for doc in ("SPEC.md", "RELEASING.md", "README.md"):
+            self.assertIn(EXP["keyset_anchor_sha256"], (ROOT / doc).read_text(encoding="utf-8"), doc)
 
-    def test_registry_ids_used(self):
-        ids = [c["id"] for c in load(TV / "valid.json")["checks"]]
-        for want in ("endpoint.health", "terms.price_vs_listing", "payto.change", "payee.wallet_risk"):
-            self.assertIn(want, ids)
-
-    def test_non_evm_network_rejected(self):
-        rec = load(TV / "valid.json")
-        rec["payment"]["network"] = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
-        self.assertIn("UNSUPPORTED_NETWORK:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                      verify.verify_record(rec, keyset=KEYSET)["errors"])
+    def test_reserved_keyset_signature_ignored(self):
+        ks = load(TV / "keyset-demo.json")
+        for v in ({"alg": "reserved-v1.1", "sig_base64": "AAAA"}, None):
+            ks["keyset_signature"] = v
+            self.assertEqual(verify.verify_record(load(TV / "valid.json"), keyset=ks)["status"], "VALID")
 
     def test_linked_decision_record_hash_includes_signature(self):
-        outcome = load(TV / "example-outcome-record.json")
-        link = outcome["links"][0]
+        link = load(TV / "example-outcome-record.json")["links"][0]
         self.assertEqual(link["record_sha256"]["input"], "jcs(record)")
         full = load(TV / "valid.json")
         self.assertEqual(verify.sha256_hex(verify.canonicalize(full)), link["record_sha256"]["hex"])
         body = copy.deepcopy(full); body.pop("signature")
         self.assertNotEqual(verify.sha256_hex(verify.canonicalize(body)), link["record_sha256"]["hex"])
 
-    def test_keyset_copies_identical_and_anchor(self):
-        a = (ROOT / ".well-known/x402-decision-keyset.json").read_bytes()
-        self.assertEqual(a, (ROOT / "verifier/demo-keyset.json").read_bytes())
-        self.assertEqual(a, (TV / "keyset-demo.json").read_bytes())
-        self.assertTrue((ROOT / ".nojekyll").exists())
-        rec = str(TV / "valid.json"); ks = str(ROOT / ".well-known/x402-decision-keyset.json")
-        good = verify.sha256_hex(a)
-        p = subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), rec, "--keyset", ks, "--keyset-sha256", good],
-                           capture_output=True, text=True)
-        self.assertEqual(p.returncode, 0, p.stdout)
-        p = subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), rec, "--keyset", ks, "--keyset-sha256", "0" * 64],
-                           capture_output=True, text=True)
-        self.assertEqual(p.returncode, 1)
-        self.assertIn("KEYSET_SHA256_MISMATCH", p.stdout)
+    def test_registry_ids_used(self):
+        ids = [c["id"] for c in load(TV / "valid.json")["checks"]]
+        for want in sorted(verify.CHECK_REGISTRY):
+            self.assertIn(want, ids)
 
-    def test_reserved_keyset_signature_ignored(self):
-        ks = copy.deepcopy(KEYSET)
-        ks["keyset_signature"] = {"alg": "reserved-v1.1", "sig_base64": "AAAA"}
-        self.assertEqual(verify.verify_record(load(TV / "valid.json"), keyset=ks)["status"], "VALID")
-
-
-@unittest.skipUnless(__import__("importlib").util.find_spec("jsonschema"), "jsonschema not installed")
-class Schema(unittest.TestCase):
-    def test_vectors_match_schema(self):
-        import jsonschema
-        s = load(ROOT / "schema/decision-record.v0.3.schema.json")
-        jsonschema.Draft202012Validator.check_schema(s)
-        v = jsonschema.Draft202012Validator(s)
-        for f in ("valid.json", "tampered.json", "wrong-key.json", "expired-key.json"):
-            v.validate(load(TV / f))
-        bad = load(TV / "valid.json")
-        bad["checks"][0]["evidence_ceiling"] = "trust_me"
-        self.assertFalse(v.is_valid(bad))
-
-    def test_keysets_match_schema(self):
-        import jsonschema
-        s = load(ROOT / "schema/keyset.v0.3.schema.json")
-        for f in ("keyset-demo.json", "keyset-revoked.json"):
-            jsonschema.Draft202012Validator(s).validate(load(TV / f))
-        ks = load(TV / "keyset-demo.json"); ks["keyset_signature"] = None
-        jsonschema.Draft202012Validator(s).validate(ks)
-
-    def test_schema_network_and_check_ids(self):
-        import jsonschema
-        v = jsonschema.Draft202012Validator(load(ROOT / "schema/decision-record.v0.3.schema.json"))
-        rec = load(TV / "valid.json"); rec["payment"]["network"] = "solana:mainnet"
-        self.assertFalse(v.is_valid(rec))
-        rec = load(TV / "valid.json"); rec["checks"][0]["id"] = "x-acme.my_check"
-        self.assertTrue(v.is_valid(rec))  # custom ids are schema-valid (signature is a separate matter)
-        rec["checks"][0]["id"] = "Bad Id"
-        self.assertFalse(v.is_valid(rec))
+    def test_no_private_key_in_repo(self):
+        for p in ROOT.rglob("*"):
+            if p.is_file() and not {".git", "__pycache__", "node_modules"} & set(p.parts):
+                self.assertNotIn(b"BEGIN " + b"PRIVATE KEY", p.read_bytes(), p)
 
 
 if __name__ == "__main__":

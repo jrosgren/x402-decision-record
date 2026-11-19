@@ -1,7 +1,7 @@
 {
-  "schema_version": "0.3-draft",
+  "schema_version": "1.0",
   "record_type": "x402-pre-payment-decision",
-  "record_id": "at_dr_example_v03_000003",
+  "record_id": "at_dr_example_v10_000001",
   "example_data": true,
   "issuer": "https://trypolkulab.com",
   "signing_key": {
@@ -9,7 +9,7 @@
     "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
   },
   "payment": {
-    "x402_version": 1,
+    "x402_version": 2,
     "scheme": "exact",
     "network": "eip155:8453",
     "asset": "0x0000000000000000000000000000000000000003",
@@ -25,13 +25,13 @@
         "input": "eip3009-nonce-bytes32",
         "hex": "1e69a726790da06715fa2df707d84f1e100b3471258599c8c2a80a5646d6965a"
       },
-      "valid_after": "2027-01-15T08:59:00Z",
-      "valid_before": "2027-01-15T09:05:00Z"
+      "valid_after": "2026-11-19T08:59:00Z",
+      "valid_before": "2026-11-19T09:05:00Z"
     },
     "payment_requirements_sha256": {
       "alg": "sha-256",
       "input": "jcs(payment_requirements)",
-      "hex": "f0637a9ac3f2b1ef6f6e1ba6bf548677b864faf3715ee8020291a78e7476d80e"
+      "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
     },
     "request_sha256": {
       "alg": "sha-256",
@@ -41,30 +41,30 @@
     "tx_hash": null
   },
   "timeline": {
-    "requirements_received_at": "2027-01-15T09:00:00.000Z",
-    "authorization_presented_at": "2027-01-15T09:00:00.150Z",
-    "decision_issued_at": "2027-01-15T09:00:00.910Z"
+    "requirements_received_at": "2026-11-19T09:00:00.000Z",
+    "authorization_presented_at": "2026-11-19T09:00:00.150Z",
+    "decision_issued_at": "2026-11-19T09:00:00.910Z"
   },
   "checks": [
     {
       "id": "endpoint.health",
       "result": "pass",
-      "ran_at": "2027-01-15T09:00:00.210Z",
+      "ran_at": "2026-11-19T09:00:00.210Z",
       "evidence_ceiling": "recomputable_from_client_view",
       "evidence_sha256": {
         "alg": "sha-256",
         "input": "jcs(evidence)",
-        "hex": "b70dfc92757a9a761d1032807abfc337228e290bbd32c95c708ea5afc5a7acfb"
+        "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
       },
       "evidence": {
         "http_status": 402,
-        "payment_requirements_sha256": "f0637a9ac3f2b1ef6f6e1ba6bf548677b864faf3715ee8020291a78e7476d80e"
+        "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
       }
     },
     {
       "id": "terms.price_vs_listing",
       "result": "warn",
-      "ran_at": "2027-01-15T09:00:00.260Z",
+      "ran_at": "2026-11-19T09:00:00.260Z",
       "evidence_ceiling": "recomputable_from_client_view",
       "evidence_sha256": {
         "alg": "sha-256",
@@ -81,7 +81,7 @@
     {
       "id": "payto.change",
       "result": "pass",
-      "ran_at": "2027-01-15T09:00:00.300Z",
+      "ran_at": "2026-11-19T09:00:00.300Z",
       "evidence_ceiling": "issuer_assertion",
       "evidence_sha256": {
         "alg": "sha-256",
@@ -96,7 +96,7 @@
     {
       "id": "payee.wallet_risk",
       "result": "warn",
-      "ran_at": "2027-01-15T09:00:00.640Z",
+      "ran_at": "2026-11-19T09:00:00.640Z",
       "evidence_ceiling": "recomputable_from_chain",
       "evidence_sha256": {
         "alg": "sha-256",
@@ -113,7 +113,7 @@
     {
       "id": "x-polkulab.sanctions_list",
       "result": "pass",
-      "ran_at": "2027-01-15T09:00:00.700Z",
+      "ran_at": "2026-11-19T09:00:00.700Z",
       "evidence_ceiling": "issuer_assertion",
       "evidence_sha256": {
         "alg": "sha-256",
@@ -210,8 +210,6 @@
   "signature": {
     "alg": "Ed25519",
     "key_id": "polkulab-demo-2026-11",
-    "canonicalization": "RFC 8785 (JCS) of the record without the signature member",
-    "sha256": "42a1fd9ec05fcd8d876462bd46270c74d4be190df94d8ffb3746c6c8564b2295",
-    "sig_base64": "GPLDpFXQS1YaRhpWDnnxYVCkDntVHBw7QXjJ67Fzj9HvV7F7nYfq3Yf4W59f/C/SjPdF9rCpeU/z+ZXYzaMLAw=="
+    "sig_base64": "2QbU1bC558wjZGkE3bQaH7sK9n1BpgF7uByR2TKwd//+gOzJk1H9m3B0MGVlg8tyQ5Z7zc/S8MUh4RhO4FajB1=="
   }
 }

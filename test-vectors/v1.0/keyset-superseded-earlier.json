@@ -1,9 +1,9 @@
 {
-  "_note": "EXAMPLE keyset for tests: the demo key marked revoked for key_compromise.",
-  "keyset_version": "0.3-draft",
+  "_note": "EXAMPLE keyset for tests: the demo key superseded at 2026-11-19T09:00:00Z, before valid.json was issued.",
+  "keyset_version": "1.0",
   "example_data": true,
   "issuer": "https://trypolkulab.com",
-  "published_at": "2026-11-20T00:00:00Z",
+  "published_at": "2026-11-19T00:00:00Z",
   "keys": [
     {
       "key_id": "polkulab-demo-2026-11",
@@ -13,8 +13,8 @@
       "valid_until": "2027-01-01T00:00:00Z",
       "status": "revoked",
       "purpose": "demo signing of example records only",
-      "revoked_at": "2026-11-20T00:00:00Z",
-      "revocation_reason": "key_compromise"
+      "revoked_at": "2026-11-19T09:00:00Z",
+      "revocation_reason": "superseded"
     }
   ]
 }

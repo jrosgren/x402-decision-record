@@ -1,6 +1,6 @@
 # Third-party verifier for an AgentTrust decision record
 
-**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. This folder verifies format v0.2-draft and v0.3-draft (see [`../SPEC.md`](../SPEC.md)). v0.3 is planned to be frozen as v1.0 on 24.11.2026, with release v1.0.0 by 25.11.2026.
+**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. This folder verifies format v1.0 (release candidate, see [`../SPEC.md`](../SPEC.md)) and legacy v0.2-draft. The freeze as v1.0 is planned on 24.11.2026, with release v1.0.0 by 25.11.2026.
 
 A third party can check that a record has not been changed since it was signed, without access to Polkulab systems and without trusting Polkulab's own logs. Verification uses only the record, the public key, and open algorithms.
 
@@ -16,9 +16,11 @@ The SHA-256 of the valid example's canonical bytes is:
 
 `record-tampered.json` is the same record with `score` changed from 62 to 30 and the original signature kept, so a check must fail.
 
-## v0.3-draft records
+## v1.0 records
 
-v0.3 records are checked against a **keyset** (key id, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json).
+v1.0 records are first validated against the v1.0 JSON Schema (copies next to this script: `decision-record.v1.0.schema.json`, `keyset.v1.0.schema.json`; `verify.html` embeds them). Both verifiers use the same small validator and report the same error codes, for example `BAD_SIGNATURE_OBJECT:/signature`, `NONCANONICAL_SIGNATURE:/signature/sig_base64`, `BAD_TIMESTAMP:/timeline/decision_issued_at`, `BAD_NUMBER:/decision/score` or `SCHEMA_VIOLATION:<pointer>`. `schema_version` must be exactly `"1.0"` (or `"0.2-draft"` for legacy records); anything else is `UNSUPPORTED_SCHEMA_VERSION`.
+
+Then the record is checked against a **keyset** (version `"1.0"`, unique key ids, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json). Signatures must be canonical base64 with `S < L` on every path, including the tweetnacl fallback in `verify.html`.
 
 **Where the keyset is published (from v1.0.0):**
 
@@ -26,25 +28,25 @@ v0.3 records are checked against a **keyset** (key id, validity window, revocati
 2. **Secondary:** the `keyset.json` asset on the GitHub release tag `v1.0.0`.
 3. A third copy on trypolkulab.com may follow later. It is optional.
 
-The release notes carry the SHA-256 of `keyset.json`. Check your copy against it with `--keyset-sha256`. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`). Unknown check ids are reported as info and never make a record invalid.
+The release notes carry the SHA-256 of `keyset.json` (demo keyset today: `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`). Check your copy against it with `--keyset-sha256`, or paste it into the anchor field of `verify.html` together with the keyset file text. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`) and bind to x402 v2 payment requirements (`amount`, not v1 `maxAmountRequired`). Unknown check ids are reported as info and never make a record invalid.
 
-Run from the repository root:
+Run from the repository root (`pip install rfc8785`, and optionally `cryptography`; otherwise OpenSSL 3 is used):
 
 ```bash
-python3 verifier/verify.py test-vectors/v0.3/valid.json                 # VALID
-python3 verifier/verify.py test-vectors/v0.3/expired-key.json           # INVALID KEY_NOT_VALID_AT_ISSUANCE
-python3 verifier/verify.py test-vectors/v0.3/valid.json \
-    --keyset test-vectors/v0.3/keyset-revoked.json                      # INVALID KEY_REVOKED
-python3 verifier/verify.py test-vectors/v0.3/valid.json \
-    --binding-inputs test-vectors/v0.3/binding-inputs.json \
-    --linked test-vectors/v0.3/linked/*.json --json                     # also recompute binding and link hashes
-python3 verifier/verify.py test-vectors/v0.3/valid.json \
-    --keyset .well-known/x402-decision-keyset.json --keyset-sha256 <hex from release notes>
+python3 verifier/verify.py test-vectors/v1.0/valid.json                 # VALID
+python3 verifier/verify.py test-vectors/v1.0/expired-key.json           # INVALID KEY_NOT_VALID_AT_ISSUANCE
+python3 verifier/verify.py test-vectors/v1.0/valid.json \
+    --keyset test-vectors/v1.0/keyset-revoked.json                      # INVALID KEY_REVOKED
+python3 verifier/verify.py test-vectors/v1.0/valid.json \
+    --binding-inputs test-vectors/v1.0/binding-inputs.json \
+    --linked test-vectors/v1.0/linked/*.json --json                     # also recompute binding and link hashes
+python3 verifier/verify.py test-vectors/v1.0/valid.json \
+    --keyset .well-known/x402-decision-keyset.json --keyset-sha256 958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745
 ```
 
-`verify.html` has buttons for the v0.3 examples, a keyset field (prefilled with the demo keyset) and an optional binding-inputs field. It still makes no network calls.
+`verify.html` has buttons for the v1.0 examples, a keyset field (prefilled with the demo keyset), an anchor field, and optional binding-inputs and linked-records fields. It has the same checks as `verify.py`, including the anchor check and linked-record recomputation, and it still makes no network calls. Give it the record as text: JSON numbers such as `62.0` are only visible in the text.
 
-All tests: `bash tests/run_all.sh` (Python unittest, OpenSSL by hand, headless Node running the page's JavaScript through both Web Crypto and tweetnacl).
+All tests: `bash tests/run_all.sh` (Python unittest and Node both run every case in `test-vectors/v1.0/expected.json`, Node through both Web Crypto and tweetnacl; plus OpenSSL by hand and a headless Chrome run of the page itself).
 
 ## Three ways to verify (v0.2 example)
 
@@ -63,13 +65,13 @@ python3 verify.py record-tampered.json demo-pub.pem
 
 The first prints `VALID` and the sha256 above (exit status 0). The second prints `INVALID` and exits with status 1.
 
-`verify.py` uses the `rfc8785` package if installed (`pip install rfc8785`). Otherwise it uses `json.dumps(..., sort_keys=True, separators=(',', ':'), ensure_ascii=False)`, which matches JCS for these example records (ASCII keys and integer scores). It then calls OpenSSL to check the Ed25519 signature.
+`verify.py` needs the `rfc8785` package (`pip install rfc8785`) for canonicalization. It checks the Ed25519 signature with the `cryptography` package if installed, otherwise with OpenSSL.
 
 ### 3. OpenSSL, by hand
 
 These commands were tested with OpenSSL 3. They must be run from this directory.
 
-Write the record without the `signature` field as canonical JSON (UTF-8, sorted keys, no whitespace):
+Write the record without the `signature` field as canonical JSON (UTF-8, sorted keys, no whitespace). For this v0.2 example `json.dumps` with sorted keys equals JCS (ASCII keys, integers only); for other records use an RFC 8785 library:
 
 ```bash
 python3 -c '
@@ -109,6 +111,7 @@ sha256sum canon.json
 - `record-valid.json` — signed example (example data)
 - `record-tampered.json` — same record with `score` 62 → 30 and the original signature kept
 - `demo-pub.pem` — demo Ed25519 public key (`polkulab-demo-2026-11`)
-- `demo-keyset.json` — demo keyset for v0.3 (validity window 2026-11-01 to 2027-01-01)
+- `demo-keyset.json` — demo keyset for v1.0 (validity window 2026-11-01 to 2027-01-01)
+- `decision-record.v1.0.schema.json`, `keyset.v1.0.schema.json` — copies of the schemas in `../schema/` (byte-identical), so this folder works on its own
 
 The corresponding private demo key is not in this folder and is not published.

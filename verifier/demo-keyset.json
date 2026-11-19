@@ -1,6 +1,6 @@
 {
   "_note": "EXAMPLE / DEMO keyset. The demo key signs example records only, never production decisions.",
-  "keyset_version": "0.3-draft",
+  "keyset_version": "1.0",
   "example_data": true,
   "issuer": "https://trypolkulab.com",
   "published_at": "2026-11-19T00:00:00Z",

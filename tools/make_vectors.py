@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Generate the v0.3 test vectors (EXAMPLE DATA ONLY).
+"""Generate the v1.0 test vectors (EXAMPLE DATA ONLY).
 
 Usage: python3 tools/make_vectors.py --key /path/to/demo-key.pem
 
 The demo private key is NOT in this repository and must never be committed.
 Requires: cryptography, rfc8785 (pip install cryptography rfc8785).
-Writes test-vectors/v0.3/* and injects the vectors into verifier/verify.html.
+Writes test-vectors/v1.0/* (positive and negative vectors plus expected.json),
+the keyset copies, the schema copies in verifier/, and injects the vectors and
+schemas into verifier/verify.html.
 """
 from __future__ import annotations
 
@@ -22,7 +24,9 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = Path(__file__).resolve().parent.parent
-TV = ROOT / "test-vectors" / "v0.3"
+TV = ROOT / "test-vectors" / "v1.0"
+NEG = TV / "negative"
+L = 2 ** 252 + 27742317777372353535851937790883648493
 KEY_ID = "polkulab-demo-2026-11"
 KEYSET_URI = "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
 DEMO_PUB_PEM = (ROOT / "verifier" / "demo-pub.pem").read_text().strip() + "\n"
@@ -45,34 +49,32 @@ def dump(path: Path, obj) -> None:
 
 
 def sign(record: dict, key: Ed25519PrivateKey, key_id: str = KEY_ID) -> dict:
+    """v1.0 signature object: exactly alg, key_id, sig_base64 (SPEC §3)."""
     body = copy.deepcopy(record)
     body.pop("signature", None)
-    canon = jcs(body)
-    sig = key.sign(canon)
+    sig = key.sign(jcs(body))
     out = copy.deepcopy(body)
-    out["signature"] = {
-        "alg": "Ed25519",
-        "key_id": key_id,
-        "canonicalization": "RFC 8785 (JCS) of the record without the signature member",
-        "sha256": sha256_hex(canon),
-        "sig_base64": base64.b64encode(sig).decode(),
-    }
+    out["signature"] = {"alg": "Ed25519", "key_id": key_id, "sig_base64": base64.b64encode(sig).decode()}
     return out
 
 
 # ---------------------------------------------------------------- inputs
 NONCE_HEX = "0x" + "e1" * 4 + "0" * 48 + "00000001"  # example bytes32 nonce
+# x402 v2: one element of PaymentRequired.accepts (amount, not v1 maxAmountRequired; no resource)
 PAYMENT_REQUIREMENTS = {
     "scheme": "exact",
     "network": "eip155:8453",
-    "maxAmountRequired": "4500000",
-    "resource": "https://api.example-seller.test/v1/report",
-    "description": "EXAMPLE resource (example data)",
-    "mimeType": "application/json",
+    "amount": "4500000",
+    "asset": "0x0000000000000000000000000000000000000003",
     "payTo": "0x0000000000000000000000000000000000000002",
     "maxTimeoutSeconds": 300,
-    "asset": "0x0000000000000000000000000000000000000003",
     "extra": {"name": "USD Coin (example)", "version": "2"},
+}
+# x402 v2: PaymentRequired.resource (ResourceInfo)
+RESOURCE_INFO = {
+    "url": "https://api.example-seller.test/v1/report",
+    "description": "EXAMPLE resource (example data)",
+    "mimeType": "application/json",
 }
 RESOURCE_REQUEST = {
     "method": "GET",
@@ -82,7 +84,9 @@ RESOURCE_REQUEST = {
 BINDING_INPUTS = {
     "_note": "EXAMPLE DATA ONLY. Raw inputs a client would hold, so a verifier can recompute the binding hashes.",
     "authorization_nonce": NONCE_HEX,
+    "x402_version": 2,
     "payment_requirements": PAYMENT_REQUIREMENTS,
+    "resource": RESOURCE_INFO,
     "resource_request": RESOURCE_REQUEST,
 }
 
@@ -118,7 +122,7 @@ def check(cid, result, ran_at, ceiling, evidence):
 
 def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08:59:00Z",
                 valid_before="2026-11-19T09:05:00Z", presented="2026-11-19T09:00:00.150Z",
-                received="2026-11-19T09:00:00.000Z", record_id="at_dr_example_v03_000001"):
+                received="2026-11-19T09:00:00.000Z", record_id="at_dr_example_v10_000001"):
     nonce_bytes = bytes.fromhex(NONCE_HEX[2:])
     d = issued_at[:10]
     checks = [
@@ -138,7 +142,7 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
                "list_snapshot_sha256": sha256_hex(b"example list snapshot"), "match": False}),
     ]
     return {
-        "schema_version": "0.3-draft",
+        "schema_version": "1.0",
         "record_type": "x402-pre-payment-decision",
         "record_id": record_id,
         "example_data": True,
@@ -148,7 +152,7 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
             "keyset_uri": KEYSET_URI,
         },
         "payment": {
-            "x402_version": 1,
+            "x402_version": 2,
             "scheme": "exact",
             "network": "eip155:8453",
             "asset": "0x0000000000000000000000000000000000000003",
@@ -157,7 +161,7 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
             "amount_atomic": "4500000",
             "payer": "0x0000000000000000000000000000000000000001",
             "payee": "0x0000000000000000000000000000000000000002",
-            "resource": "https://api.example-seller.test/v1/report",
+            "resource": RESOURCE_INFO["url"],
             "authorization": {
                 "nonce_sha256": h("eip3009-nonce-bytes32", nonce_bytes),
                 "valid_after": valid_after,
@@ -216,6 +220,19 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
     }
 
 
+def mutated(key, fn, record_id, **kw) -> dict:
+    """Build the base record, apply fn, then sign: the only defect is the one fn introduces."""
+    r = base_record(record_id=record_id, **kw)
+    fn(r)
+    return sign(r, key, key_id=r["signing_key"]["key_id"])
+
+
+def set_path(obj, path, value):
+    for k in path[:-1]:
+        obj = obj[k]
+    obj[path[-1]] = value
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--key", required=True, help="path to the demo Ed25519 private key PEM (never commit it)")
@@ -226,9 +243,16 @@ def main() -> None:
     if pub.strip() != DEMO_PUB_PEM.strip():
         raise SystemExit("private key does not match verifier/demo-pub.pem")
 
+    for old in list(TV.glob("*.json")) + list(NEG.glob("*.json")):
+        old.unlink()  # regenerate from scratch
+    TV.mkdir(parents=True, exist_ok=True)
+    (TV / "linked").mkdir(exist_ok=True)
+    NEG.mkdir(exist_ok=True)
+
+    # ------------------------------------------------------------ keysets
     keyset = {
         "_note": "EXAMPLE / DEMO keyset. The demo key signs example records only, never production decisions.",
-        "keyset_version": "0.3-draft",
+        "keyset_version": "1.0",
         "example_data": True,
         "issuer": "https://trypolkulab.com",
         "published_at": "2026-11-19T00:00:00Z",
@@ -242,35 +266,144 @@ def main() -> None:
             "purpose": "demo signing of example records only",
         }],
     }
-    revoked = copy.deepcopy(keyset)
-    revoked["_note"] = "EXAMPLE keyset for tests: the demo key marked revoked for key_compromise."
-    revoked["published_at"] = "2026-11-20T00:00:00Z"
-    revoked["keys"][0].update({"status": "revoked", "revoked_at": "2026-11-20T00:00:00Z",
-                               "revocation_reason": "key_compromise"})
 
+    def keyset_variant(note, fn):
+        k = copy.deepcopy(keyset)
+        k["_note"] = "EXAMPLE keyset for tests: " + note
+        fn(k)
+        return k
+
+    keysets = {
+        "keyset-revoked.json": keyset_variant("the demo key revoked for key_compromise.", lambda k: (
+            k.update({"published_at": "2026-11-20T00:00:00Z"}),
+            k["keys"][0].update({"status": "revoked", "revoked_at": "2026-11-20T00:00:00Z", "revocation_reason": "key_compromise"}))),
+        "keyset-superseded-later.json": keyset_variant("the demo key superseded on 2026-12-01, after valid.json was issued.", lambda k:
+            k["keys"][0].update({"status": "revoked", "revoked_at": "2026-12-01T00:00:00Z", "revocation_reason": "superseded"})),
+        "keyset-superseded-earlier.json": keyset_variant("the demo key superseded at 2026-11-19T09:00:00Z, before valid.json was issued.", lambda k:
+            k["keys"][0].update({"status": "revoked", "revoked_at": "2026-11-19T09:00:00Z", "revocation_reason": "superseded"})),
+        "keyset-duplicate-key-id.json": keyset_variant("the same key_id twice, first revoked then active (must be rejected, not last-wins).", lambda k:
+            k["keys"].insert(0, dict(k["keys"][0], status="revoked", revoked_at="2026-11-02T00:00:00Z", revocation_reason="key_compromise"))),
+        "keyset-version-0.3.json": keyset_variant("unsupported keyset_version.", lambda k: k.update({"keyset_version": "0.3-draft"})),
+        "keyset-bad-timestamp.json": keyset_variant("valid_from without a Z zone.", lambda k: k["keys"][0].update({"valid_from": "2026-11-01T00:00:00"})),
+    }
+
+    # ------------------------------------------------------------ records
     valid = sign(base_record(), key)
     tampered = copy.deepcopy(valid)
     tampered["decision"]["score"] = 30
     other = Ed25519PrivateKey.generate()  # throwaway key, discarded after this run
-    wrong = sign(base_record(record_id="at_dr_example_v03_000002"), other)
+    wrong = sign(base_record(record_id="at_dr_example_v10_000002"), other)
     expired = sign(base_record(issued_at="2027-01-15T09:00:00.910Z", valid_after="2027-01-15T08:59:00Z",
                                valid_before="2027-01-15T09:05:00Z", presented="2027-01-15T09:00:00.150Z",
-                               received="2027-01-15T09:00:00.000Z", record_id="at_dr_example_v03_000003"), key)
+                               received="2027-01-15T09:00:00.000Z", record_id="at_dr_example_v10_000003"), key)
 
-    TV.mkdir(parents=True, exist_ok=True)
-    (TV / "linked").mkdir(exist_ok=True)
     dump(TV / "valid.json", valid)
     dump(TV / "tampered.json", tampered)
     dump(TV / "wrong-key.json", wrong)
     dump(TV / "expired-key.json", expired)
     dump(TV / "keyset-demo.json", keyset)
-    dump(TV / "keyset-revoked.json", revoked)
-    dump(TV / "binding-inputs.json", BINDING_INPUTS)
+    for name, ks in keysets.items():
+        dump(TV / name, ks)
     dump(TV / "linked" / "content-time-record.json", CONTENT_TIME_RECORD)
     dump(TV / "linked" / "seller-attestation.json", SELLER_ATTESTATION)
     dump(ROOT / "verifier" / "demo-keyset.json", keyset)
     (ROOT / ".well-known").mkdir(exist_ok=True)
     dump(ROOT / ".well-known" / "x402-decision-keyset.json", keyset)
+
+    # binding inputs: x402 v2 plus variants
+    dump(TV / "binding-inputs.json", BINDING_INPUTS)
+
+    def bi_variant(note, fn):
+        b = copy.deepcopy(BINDING_INPUTS)
+        b["_note"] = "EXAMPLE DATA ONLY. Negative binding inputs: " + note
+        fn(b)
+        return b
+
+    v1_pr = {"scheme": "exact", "network": "base", "maxAmountRequired": "4500000",
+             "resource": RESOURCE_INFO["url"], "description": RESOURCE_INFO["description"],
+             "mimeType": RESOURCE_INFO["mimeType"], "payTo": PAYMENT_REQUIREMENTS["payTo"],
+             "maxTimeoutSeconds": 300, "asset": PAYMENT_REQUIREMENTS["asset"], "extra": PAYMENT_REQUIREMENTS["extra"]}
+    bindings = {
+        "binding-inputs-x402-v1.json": bi_variant("x402 v1 requirements (maxAmountRequired, network 'base'); must be mapped to v2 first.",
+                                                  lambda b: b.update({"x402_version": 1, "payment_requirements": v1_pr})),
+        "binding-inputs-no-amount.json": bi_variant("amount missing.", lambda b: b["payment_requirements"].pop("amount")),
+        "binding-inputs-wrong-amount.json": bi_variant("amount differs from amount_atomic.", lambda b: b["payment_requirements"].update({"amount": "9900000"})),
+        "binding-inputs-wrong-payto.json": bi_variant("payTo differs from payee.", lambda b: b["payment_requirements"].update({"payTo": "0x0000000000000000000000000000000000000009"})),
+        "binding-inputs-wrong-resource.json": bi_variant("resource.url differs from payment.resource.", lambda b: b["resource"].update({"url": "https://other.example-seller.test/v1/report"})),
+        "binding-inputs-wrong-nonce.json": bi_variant("a different 32-byte nonce.", lambda b: b.update({"authorization_nonce": "0x" + "00" * 32})),
+        "binding-inputs-bad-nonce.json": bi_variant("nonce is 31 bytes, not 32.", lambda b: b.update({"authorization_nonce": "0x" + "e1" * 31})),
+    }
+    for name, b in bindings.items():
+        dump(NEG / name, b)
+    altered_ct = dict(CONTENT_TIME_RECORD, observed_at="2026-11-19T09:00:03Z")
+    dump(NEG / "linked-content-time-record-altered.json", altered_ct)
+
+    # negative records (each signed with the demo key, so only the named defect is wrong)
+    def sig_variant(fn):
+        r = copy.deepcopy(valid)
+        fn(r["signature"])
+        return r
+
+    raw_sig = base64.b64decode(valid["signature"]["sig_base64"])
+    s_plus_l = raw_sig[:32] + (int.from_bytes(raw_sig[32:], "little") + L).to_bytes(32, "little")
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    b64 = valid["signature"]["sig_base64"]
+    noncanon = b64[:85] + alphabet[(alphabet.index(b64[85]) & 0b110000) | 0b0101] + "=="
+    assert base64.b64decode(noncanon) == raw_sig and noncanon != b64
+
+    def drop_evidence(i, inp=None):
+        def f(r):
+            del r["checks"][i]["evidence"]
+            if inp:
+                r["checks"][i]["evidence_sha256"]["input"] = inp
+        return f
+
+    def bad_evidence(r):
+        r["checks"][0]["evidence"]["http_status"] = 200  # hash no longer matches, but signed
+
+    neg = {
+        "sig-extra-member.json": sig_variant(lambda s: s.update({"extra": "x"})),
+        "sig-canonicalization-member.json": sig_variant(lambda s: s.update({"canonicalization": "RFC8785"})),
+        "sig-sha256-member.json": sig_variant(lambda s: s.update({"sha256": "00" * 32})),
+        "sig-noncanonical-base64.json": sig_variant(lambda s: s.update({"sig_base64": noncanon})),
+        "sig-s-plus-l.json": sig_variant(lambda s: s.update({"sig_base64": base64.b64encode(s_plus_l).decode()})),
+        "version-0.3-draft.json": mutated(key, lambda r: r.update({"schema_version": "0.3-draft"}), "at_dr_neg_version_03"),
+        "version-1.0.0.json": mutated(key, lambda r: r.update({"schema_version": "1.0.0"}), "at_dr_neg_version_100"),
+        "ts-microseconds.json": mutated(key, lambda r: set_path(r, ["timeline", "authorization_presented_at"], "2026-11-19T09:00:00.150900Z"), "at_dr_neg_ts_us"),
+        "ts-no-zone.json": mutated(key, lambda r: set_path(r, ["timeline", "decision_issued_at"], "2026-11-19T09:00:00.910"), "at_dr_neg_ts_nozone"),
+        "ts-offset.json": mutated(key, lambda r: set_path(r, ["timeline", "requirements_received_at"], "2026-11-19T11:00:00.000+02:00"), "at_dr_neg_ts_offset"),
+        "ts-not-a-date.json": mutated(key, lambda r: set_path(r, ["checks", 0, "ran_at"], "2026-02-30T09:00:00.210Z"), "at_dr_neg_ts_feb30"),
+        "x402-v1-record.json": mutated(key, lambda r: set_path(r, ["payment", "x402_version"], 1), "at_dr_neg_x402v1"),
+        "link-ceiling-bogus.json": mutated(key, lambda r: set_path(r, ["links", 0, "evidence_ceiling"], "bogus"), "at_dr_neg_link_ceiling"),
+        "link-input-md5.json": mutated(key, lambda r: set_path(r, ["links", 0, "record_sha256", "input"], "md5(x)"), "at_dr_neg_link_input"),
+        "seller-attestation-no-expiry.json": mutated(key, lambda r: r["links"][1].pop("expires_at"), "at_dr_neg_attest_noexp"),
+        "withheld-evidence-unknown-input.json": mutated(key, drop_evidence(2, "sha3(foo)"), "at_dr_neg_withheld_input"),
+        "score-101.json": mutated(key, lambda r: set_path(r, ["decision", "score"], 101), "at_dr_neg_score101"),
+        "non-evm-network.json": mutated(key, lambda r: set_path(r, ["payment", "network"], "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"), "at_dr_neg_solana"),
+        "unknown-key-id.json": mutated(key, lambda r: set_path(r, ["signing_key", "key_id"], "polkulab-unknown-key"), "at_dr_neg_unknown_key"),
+        "key-id-mismatch.json": sign(dict(base_record(record_id="at_dr_neg_kid_mismatch"), signing_key={"key_id": "polkulab-other-key", "keyset_uri": KEYSET_URI}), key),
+        "timeline-out-of-order.json": mutated(key, lambda r: None, "at_dr_neg_timeline", received="2026-11-19T09:00:00.200Z"),
+        "check-outside-window.json": mutated(key, lambda r: set_path(r, ["checks", 0, "ran_at"], "2026-11-19T09:00:00.100Z"), "at_dr_neg_check_window"),
+        "decision-after-expiry.json": mutated(key, lambda r: None, "at_dr_neg_expiry", valid_before="2026-11-19T09:00:00.500Z"),
+        "authorization-window-inverted.json": mutated(key, lambda r: None, "at_dr_neg_auth_window", valid_after="2026-11-19T09:06:00Z"),
+        "evidence-hash-mismatch.json": mutated(key, bad_evidence, "at_dr_neg_evidence"),
+        "field-pointer-unresolved.json": mutated(key, lambda r: r["field_evidence_ceilings"].update({"/payment/does_not_exist": "issuer_assertion"}), "at_dr_neg_pointer"),
+    }
+    pos = {
+        "unknown-check-id.json": mutated(key, lambda r: set_path(r, ["checks", 0, "id"], "some.future_check"), "at_dr_pos_unknown_check"),
+        "withheld-evidence.json": mutated(key, drop_evidence(2), "at_dr_pos_withheld"),
+    }
+    for name, r in neg.items():
+        dump(NEG / name, r)
+    for name, r in pos.items():
+        dump(TV / name, r)
+    # numbers: written as text, since a float or an out-of-range integer cannot be JCS-signed
+    vtext = (TV / "valid.json").read_text(encoding="utf-8")
+    for name, old, new in (("number-float.json", '"score": 62,', '"score": 62.0,'),
+                           ("number-too-large.json", '"first_tx_block": 22000000,', '"first_tx_block": 9007199254740993,')):
+        assert vtext.count(old) == 1
+        (NEG / name).write_text(vtext.replace(old, new), encoding="utf-8")
+
     # Example of a later record linking to a decision record: hash = jcs(record), signature INCLUDED.
     outcome = {
         "_note": "EXAMPLE DATA ONLY. Unsigned stand-in for a later outcome record that links to valid.json.",
@@ -283,31 +416,117 @@ def main() -> None:
     }
     dump(TV / "example-outcome-record.json", outcome)
     keyset_bytes = (ROOT / ".well-known" / "x402-decision-keyset.json").read_bytes()
-    print("keyset.json sha256 (release-notes anchor):", sha256_hex(keyset_bytes))
+    anchor = sha256_hex(keyset_bytes)
+    print("keyset.json sha256 (release-notes anchor):", anchor)
+
+    # ------------------------------------------------------------ expected.json
+    body = copy.deepcopy(valid); body.pop("signature")
+    LINKED = ["linked/content-time-record.json", "linked/seller-attestation.json"]
+    BI = "binding-inputs.json"
+    cases = []
+
+    def case(name, record, status, errors=(), warnings=(), keyset="keyset-demo.json", **kw):
+        c = {"name": name, "record": record, "keyset": keyset}
+        c.update(kw)
+        c.update({"status": status, "errors": sorted(errors), "warnings": sorted(warnings)})
+        cases.append(c)
+
+    case("valid, full (binding inputs and linked records)", "valid.json", "VALID", binding_inputs=BI, linked=LINKED,
+         info_includes=["BINDING_RECOMPUTED_OK", "LINK_RECOMPUTED_OK:content_time_record", "LINK_RECOMPUTED_OK:seller_attestation",
+                        "CUSTOM_CHECK_ID:x-polkulab.sanctions_list"], sha256=sha256_hex(jcs(body)))
+    case("valid, keyset matches the release anchor", "valid.json", "VALID", keyset_sha256=anchor)
+    case("keyset does not match the release anchor", "valid.json", "INVALID", ["KEYSET_SHA256_MISMATCH"], keyset_sha256="0" * 64)
+    case("tampered after signing (score 62 -> 30)", "tampered.json", "INVALID", ["BAD_SIGNATURE"])
+    case("signed with a different key under the demo key_id", "wrong-key.json", "INVALID", ["BAD_SIGNATURE"])
+    case("issued after the key's valid_until", "expired-key.json", "INVALID", ["KEY_NOT_VALID_AT_ISSUANCE"],
+         ["LINK_EXPIRED_AT_ISSUANCE:seller_attestation"])
+    case("key revoked for key_compromise", "valid.json", "INVALID", ["KEY_REVOKED"], keyset="keyset-revoked.json")
+    case("key superseded after issuance: still valid", "valid.json", "VALID", [], ["KEY_SUPERSEDED_AFTER_ISSUANCE"], keyset="keyset-superseded-later.json")
+    case("key superseded before issuance", "valid.json", "INVALID", ["KEY_REVOKED"], keyset="keyset-superseded-earlier.json")
+    case("M3 duplicate key_id in keyset", "valid.json", "INVALID", ["DUPLICATE_KEY_ID:" + KEY_ID], keyset="keyset-duplicate-key-id.json")
+    case("M2 keyset_version not 1.0", "valid.json", "INVALID", ["UNSUPPORTED_KEYSET_VERSION:keyset#/keyset_version"], keyset="keyset-version-0.3.json")
+    case("M4 keyset timestamp without Z", "valid.json", "INVALID", ["BAD_TIMESTAMP:keyset#/keys/0/valid_from"], keyset="keyset-bad-timestamp.json")
+    case("M1 extra member in signature", "negative/sig-extra-member.json", "INVALID", ["BAD_SIGNATURE_OBJECT:/signature"])
+    case("M1 canonicalization member in signature", "negative/sig-canonicalization-member.json", "INVALID", ["BAD_SIGNATURE_OBJECT:/signature"])
+    case("M1 sha256 member in signature", "negative/sig-sha256-member.json", "INVALID", ["BAD_SIGNATURE_OBJECT:/signature"])
+    case("M1 non-canonical base64 (unused bits set)", "negative/sig-noncanonical-base64.json", "INVALID", ["NONCANONICAL_SIGNATURE:/signature/sig_base64"])
+    case("M1 malleated signature S+L", "negative/sig-s-plus-l.json", "INVALID", ["BAD_SIGNATURE"])
+    case("M2 schema_version 0.3-draft", "negative/version-0.3-draft.json", "INVALID", ["UNSUPPORTED_SCHEMA_VERSION"])
+    case("M2 schema_version 1.0.0 (no prefix match)", "negative/version-1.0.0.json", "INVALID", ["UNSUPPORTED_SCHEMA_VERSION"])
+    case("M4 timestamp with microseconds", "negative/ts-microseconds.json", "INVALID", ["BAD_TIMESTAMP:/timeline/authorization_presented_at"])
+    case("M4 timestamp without zone", "negative/ts-no-zone.json", "INVALID", ["BAD_TIMESTAMP:/timeline/decision_issued_at"])
+    case("M4 timestamp with +02:00 offset", "negative/ts-offset.json", "INVALID", ["BAD_TIMESTAMP:/timeline/requirements_received_at"])
+    case("M4 timestamp that is not a calendar date", "negative/ts-not-a-date.json", "INVALID", ["BAD_TIMESTAMP:/checks/0/ran_at"])
+    case("M5 record claims x402 v1", "negative/x402-v1-record.json", "INVALID", ["SCHEMA_VIOLATION:/payment/x402_version"])
+    case("M5 x402 v1 requirements as binding input", "valid.json", "INVALID",
+         ["BINDING_FIELD_MISMATCH:network", "BINDING_HASH_MISMATCH:jcs(payment_requirements)", "UNSUPPORTED_X402_V1_REQUIREMENTS"], binding_inputs="negative/binding-inputs-x402-v1.json")
+    case("M5 amount missing from requirements", "valid.json", "INVALID",
+         ["BINDING_HASH_MISMATCH:jcs(payment_requirements)", "BINDING_FIELD_MISSING:amount"], binding_inputs="negative/binding-inputs-no-amount.json")
+    case("M5 amount differs", "valid.json", "INVALID",
+         ["BINDING_HASH_MISMATCH:jcs(payment_requirements)", "BINDING_FIELD_MISMATCH:amount_atomic"], binding_inputs="negative/binding-inputs-wrong-amount.json")
+    case("payTo differs", "valid.json", "INVALID",
+         ["BINDING_HASH_MISMATCH:jcs(payment_requirements)", "BINDING_FIELD_MISMATCH:payee"], binding_inputs="negative/binding-inputs-wrong-payto.json")
+    case("resource url differs", "valid.json", "INVALID", ["BINDING_FIELD_MISMATCH:resource"], binding_inputs="negative/binding-inputs-wrong-resource.json")
+    case("wrong nonce", "valid.json", "INVALID", ["BINDING_HASH_MISMATCH:eip3009-nonce-bytes32"], binding_inputs="negative/binding-inputs-wrong-nonce.json")
+    case("B3 nonce not 32 bytes", "valid.json", "INVALID", ["BAD_NONCE"], binding_inputs="negative/binding-inputs-bad-nonce.json")
+    case("M6 link ceiling 'bogus'", "negative/link-ceiling-bogus.json", "INVALID", ["SCHEMA_VIOLATION:/links/0/evidence_ceiling"])
+    case("M6 link input md5(x)", "negative/link-input-md5.json", "INVALID", ["SCHEMA_VIOLATION:/links/0/record_sha256/input"])
+    case("M6 seller attestation without expires_at", "negative/seller-attestation-no-expiry.json", "INVALID", ["SCHEMA_VIOLATION:/links/1/expires_at"])
+    case("M6 withheld evidence with unknown input id", "negative/withheld-evidence-unknown-input.json", "INVALID", ["SCHEMA_VIOLATION:/checks/2/evidence_sha256/input"])
+    case("M6 score 101", "negative/score-101.json", "INVALID", ["SCHEMA_VIOLATION:/decision/score"])
+    case("B1 float in record", "negative/number-float.json", "INVALID", ["BAD_NUMBER:/decision/score"])
+    case("B1 integer above 2^53-1", "negative/number-too-large.json", "INVALID", ["BAD_NUMBER:/checks/3/evidence/first_tx_block"])
+    case("non-EVM network", "negative/non-evm-network.json", "INVALID", ["UNSUPPORTED_NETWORK:/payment/network"])
+    case("unknown key_id", "negative/unknown-key-id.json", "INVALID", ["UNKNOWN_KEY"])
+    case("signing_key.key_id differs from signature.key_id", "negative/key-id-mismatch.json", "INVALID", ["KEY_ID_MISMATCH"])
+    case("B2 requirements received after authorization presented", "negative/timeline-out-of-order.json", "INVALID", ["TIMELINE_OUT_OF_ORDER"])
+    case("check ran before authorization presented", "negative/check-outside-window.json", "INVALID", ["CHECK_OUTSIDE_DECISION_WINDOW:endpoint.health"])
+    case("decision issued after valid_before", "negative/decision-after-expiry.json", "INVALID", ["DECISION_AFTER_AUTHORIZATION_EXPIRY"])
+    case("B2 valid_after after valid_before", "negative/authorization-window-inverted.json", "INVALID", ["AUTHORIZATION_WINDOW_INVALID"])
+    case("inline evidence does not match its hash", "negative/evidence-hash-mismatch.json", "INVALID", ["EVIDENCE_HASH_MISMATCH:endpoint.health"])
+    case("K1 field_evidence_ceilings pointer does not resolve", "negative/field-pointer-unresolved.json", "INVALID", ["UNRESOLVED_POINTER:/payment/does_not_exist"])
+    case("unknown check id is info only", "unknown-check-id.json", "VALID", info_includes=["UNKNOWN_CHECK_ID:some.future_check"])
+    case("withheld evidence is info only", "withheld-evidence.json", "VALID", info_includes=["EVIDENCE_WITHHELD:payto.change"])
+    case("linked record altered: warning only", "valid.json", "VALID", [],
+         ["LINK_NOT_SUPPLIED_OR_MISMATCH:content_time_record", "LINK_NOT_SUPPLIED_OR_MISMATCH:seller_attestation"],
+         linked=["negative/linked-content-time-record-altered.json"])
+    case("legacy v0.2 valid", "../../verifier/record-valid.json", "VALID",
+         sha256="f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0")
+    case("legacy v0.2 tampered", "../../verifier/record-tampered.json", "INVALID", ["BAD_SIGNATURE"],
+         ["EMBEDDED_SHA256_MISMATCH"])
     dump(TV / "expected.json", {
-        "_note": "Expected verifier results (keyset-demo.json unless stated).",
-        "valid.json": {"status": "VALID"},
-        "tampered.json": {"status": "INVALID", "reason": "BAD_SIGNATURE"},
-        "wrong-key.json": {"status": "INVALID", "reason": "BAD_SIGNATURE"},
-        "expired-key.json": {"status": "INVALID", "reason": "KEY_NOT_VALID_AT_ISSUANCE"},
-        "valid.json+keyset-revoked.json": {"status": "INVALID", "reason": "KEY_REVOKED"},
+        "_note": ("Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over "
+                  "this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no "
+                  "keyset; keyset_sha256 is checked against the exact bytes of the keyset file. Records are passed to the "
+                  "verifiers as file text."),
+        "keyset_anchor_sha256": anchor,
+        "cases": cases,
     })
+
+    # schema copies next to the standalone verifier
+    for s in ("decision-record.v1.0.schema.json", "keyset.v1.0.schema.json"):
+        (ROOT / "verifier" / s).write_bytes((ROOT / "schema" / s).read_bytes())
 
     # inject into verify.html
     html_path = ROOT / "verifier" / "verify.html"
     html = html_path.read_text(encoding="utf-8")
-    block = ("/* BEGIN V03 VECTORS (generated by tools/make_vectors.py) */\n"
+    rs = json.loads((ROOT / "schema" / "decision-record.v1.0.schema.json").read_text(encoding="utf-8"))
+    ks = json.loads((ROOT / "schema" / "keyset.v1.0.schema.json").read_text(encoding="utf-8"))
+    block = ("/* BEGIN GENERATED (tools/make_vectors.py) */\n"
+             f"  const RECORD_SCHEMA = {json.dumps(rs)};\n"
+             f"  const KEYSET_SCHEMA = {json.dumps(ks)};\n"
              f"  const DEMO_KEYSET = {json.dumps(keyset, indent=2)};\n"
-             f"  const DEMO_V03 = {json.dumps({'valid': valid, 'tampered': tampered, 'wrong_key': wrong, 'expired_key': expired}, indent=2)};\n"
+             f"  const DEMO_V10 = {json.dumps({'valid': valid, 'tampered': tampered, 'wrong_key': wrong, 'expired_key': expired}, indent=2)};\n"
              f"  const DEMO_BINDING_INPUTS = {json.dumps(BINDING_INPUTS, indent=2)};\n"
-             "  /* END V03 VECTORS */")
-    new, n = re.subn(r"/\* BEGIN V03 VECTORS.*?/\* END V03 VECTORS \*/", lambda m: block, html, flags=re.S)
+             f"  const DEMO_LINKED = {json.dumps([CONTENT_TIME_RECORD, SELLER_ATTESTATION], indent=2)};\n"
+             "  /* END GENERATED */")
+    new, n = re.subn(r"/\* BEGIN (?:V03 VECTORS|GENERATED).*?/\* END (?:V03 VECTORS|GENERATED) \*/", lambda m: block, html, flags=re.S)
     if n == 1:
         html_path.write_text(new, encoding="utf-8")
-        print("injected vectors into verify.html")
+        print("injected vectors and schemas into verify.html")
     else:
-        print("WARNING: markers not found in verify.html; not injected")
-    print("wrote", ", ".join(sorted(p.name for p in TV.iterdir())))
+        raise SystemExit("markers not found in verify.html")
+    print("wrote", len(cases), "expected cases;", len(neg), "negative records")
 
 
 if __name__ == "__main__":

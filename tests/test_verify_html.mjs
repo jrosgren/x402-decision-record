@@ -1,6 +1,8 @@
 // Headless test of the JavaScript inside verifier/verify.html (example data).
 // Run: node tests/test_verify_html.mjs
-// Runs every vector through both the Web Crypto path and the inlined tweetnacl path.
+// Runs every case in test-vectors/v1.0/expected.json (the same list tests/test_vectors.py
+// uses) through both the Web Crypto path and the inlined tweetnacl path, and compares
+// status, sorted errors and sorted warnings exactly.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -18,61 +20,53 @@ vm.createContext(ctx);
 vm.runInContext(scripts[0] + '\nglobalThis.AgentTrustVerifier = AgentTrustVerifier;', ctx);
 const V = ctx.AgentTrustVerifier;
 
-const load = p => JSON.parse(readFileSync(join(root, p), 'utf8'));
-const tv = 'test-vectors/v0.3/';
-const keyset = load(tv + 'keyset-demo.json');
-const revoked = load(tv + 'keyset-revoked.json');
-const binding = load(tv + 'binding-inputs.json');
-const pem = readFileSync(join(root, 'verifier/demo-pub.pem'), 'utf8');
+const text = p => readFileSync(join(root, p), 'utf8');
+const load = p => JSON.parse(text(p));
+const tv = 'test-vectors/v1.0/';
+const exp = load(tv + 'expected.json');
 
 let pass = 0, fail = 0;
 function check(name, cond, detail) {
   if (cond) { pass++; console.log('ok   ' + name); }
   else { fail++; console.log('FAIL ' + name + ' ' + JSON.stringify(detail)); }
 }
+const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify(b);
 
 for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
   const tag = mode.forceWebCrypto ? '[webcrypto]' : '[tweetnacl]';
-  // v0.2 legacy call signature
-  let r = await V.verifyRecord(load('verifier/record-valid.json'), pem, mode);
-  check(tag + ' v0.2 valid', r.status === 'VALID' && r.sha256 === 'f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0', r);
-  r = await V.verifyRecord(load('verifier/record-tampered.json'), pem, mode);
-  check(tag + ' v0.2 tampered', r.status === 'INVALID', r);
-
-  const exp = load(tv + 'expected.json');
-  for (const [name, want] of Object.entries(exp)) {
-    if (name.startsWith('_')) continue;
-    const [recName, ksName] = name.split('+');
-    const ks = ksName ? load(tv + ksName) : keyset;
-    r = await V.verifyRecord(load(tv + recName), Object.assign({ keyset: ks, bindingInputs: binding }, mode));
-    check(tag + ' v0.3 ' + name, r.status === want.status && (!want.reason || r.errors.includes(want.reason)), r);
+  for (const c of exp.cases) {
+    const opts = Object.assign({}, mode);
+    if (c.keyset) opts.keysetText = text(tv + c.keyset);
+    if (c.keyset_sha256) opts.keysetSha256 = c.keyset_sha256;
+    if (c.binding_inputs) opts.bindingInputs = load(tv + c.binding_inputs);
+    if (c.linked) opts.linked = c.linked.map(p => load(tv + p));
+    const r = await V.verifyRecord(text(tv + c.record), opts);
+    const ok = r.status === c.status && same(r.errors, c.errors) && same(r.warnings, c.warnings) &&
+      (c.info_includes || []).every(i => r.info.includes(i)) && (!c.sha256 || r.sha256 === c.sha256);
+    check(tag + ' ' + c.name, ok, { status: r.status, errors: r.errors, warnings: r.warnings, info: r.info });
   }
-  // embedded copies in the page equal the files
-  r = await V.verifyRecord(V.DEMO_V03.valid, Object.assign({ keyset: V.DEMO_KEYSET, bindingInputs: V.DEMO_BINDING_INPUTS }, mode));
-  check(tag + ' embedded v0.3 valid', r.status === 'VALID' && r.info.includes('BINDING_RECOMPUTED_OK'), r);
-  r = await V.verifyRecord(load(tv + 'valid.json'), Object.assign({ keyset: revoked }, mode));
-  check(tag + ' revoked keyset', r.status === 'INVALID' && r.errors.includes('KEY_REVOKED'), r);
-  const bad = JSON.parse(JSON.stringify(binding)); bad.authorization_nonce = '0x' + '00'.repeat(32);
-  r = await V.verifyRecord(load(tv + 'valid.json'), Object.assign({ keyset, bindingInputs: bad }, mode));
-  check(tag + ' wrong nonce', r.status === 'INVALID' && r.errors.includes('BINDING_HASH_MISMATCH:eip3009-nonce-bytes32'), r);
-  r = await V.verifyRecord(load(tv + 'valid.json'), Object.assign({ keyset }, mode));
-  check(tag + ' custom check id is info only', r.status === 'VALID' && r.info.includes('CUSTOM_CHECK_ID:x-polkulab.sanctions_list'), r);
-  const sol = load(tv + 'valid.json'); sol.payment.network = 'solana:mainnet';
-  r = await V.verifyRecord(sol, Object.assign({ keyset }, mode));
-  check(tag + ' non-EVM network rejected', r.errors.includes('UNSUPPORTED_NETWORK:solana:mainnet'), r);
-  const unk = load(tv + 'valid.json'); unk.checks[0].id = 'some.future_check';
-  r = await V.verifyRecord(unk, Object.assign({ keyset }, mode));
-  check(tag + ' unknown check id not an error', r.info.includes('UNKNOWN_CHECK_ID:some.future_check') && !r.errors.some(e => e.includes('CHECK_ID')), r);
+  // the page's embedded demo copies verify too
+  const r = await V.verifyRecord(V.DEMO_V10.valid, Object.assign({ keysetText: JSON.stringify(V.DEMO_KEYSET, null, 2) + '\n',
+    keysetSha256: exp.keyset_anchor_sha256, bindingInputs: V.DEMO_BINDING_INPUTS, linked: V.DEMO_LINKED }, mode));
+  check(tag + ' embedded v1.0 valid, anchor, binding and links', r.status === 'VALID' && r.info.includes('BINDING_RECOMPUTED_OK') &&
+    r.info.includes('LINK_RECOMPUTED_OK:seller_attestation'), r);
+  // legacy call signature verifyRecord(record, pem, options)
+  const r2 = await V.verifyRecord(text('verifier/record-valid.json'), text('verifier/demo-pub.pem'), mode);
+  check(tag + ' v0.2 legacy call signature', r2.status === 'VALID', r2);
 }
+
 // jcs(record): link hash over the whole decision record incl. signature
 const outcome = load(tv + 'example-outcome-record.json');
 check('jcs(record) link hash matches', (await V.sha256Hex(V.canonicalizeBytes(load(tv + 'valid.json')))) === outcome.links[0].record_sha256.hex, null);
-check('embedded vectors equal files', JSON.stringify(V.DEMO_V03.valid) === JSON.stringify(load(tv + 'valid.json')) &&
-  JSON.stringify(V.DEMO_V03.wrong_key) === JSON.stringify(load(tv + 'wrong-key.json')), null);
+check('embedded vectors equal files', JSON.stringify(V.DEMO_V10.valid) === JSON.stringify(load(tv + 'valid.json')) &&
+  JSON.stringify(V.DEMO_V10.wrong_key) === JSON.stringify(load(tv + 'wrong-key.json')) &&
+  JSON.stringify(V.DEMO_BINDING_INPUTS) === JSON.stringify(load(tv + 'binding-inputs.json')), null);
+check('embedded schemas equal files', JSON.stringify(V.RECORD_SCHEMA) === JSON.stringify(load('schema/decision-record.v1.0.schema.json')) &&
+  JSON.stringify(V.KEYSET_SCHEMA) === JSON.stringify(load('schema/keyset.v1.0.schema.json')), null);
+check('embedded keyset text equals .well-known file (anchor)', JSON.stringify(V.DEMO_KEYSET, null, 2) + '\n' === text('.well-known/x402-decision-keyset.json'), null);
 
-// Python and JS must agree on canonical bytes
-const valid = load(tv + 'valid.json'); delete valid.signature;
-check('JCS sha256 matches embedded', (await V.sha256Hex(V.canonicalizeBytes(valid))) === load(tv + 'valid.json').signature.sha256, null);
+// B1: JCS sorts keys by UTF-16 code units (U+1F600 before U+E000), same as rfc8785 in Python
+check('JCS UTF-16 key order', V.canonicalizeToString({ '\ue000': 1, '\u{1F600}': 2 }) === '{"\u{1F600}":2,"\ue000":1}', null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
