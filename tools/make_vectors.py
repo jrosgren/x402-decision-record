@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 ROOT = Path(__file__).resolve().parent.parent
 TV = ROOT / "test-vectors" / "v0.3"
 KEY_ID = "polkulab-demo-2026-11"
+KEYSET_URI = "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
 DEMO_PUB_PEM = (ROOT / "verifier" / "demo-pub.pem").read_text().strip() + "\n"
 
 
@@ -121,18 +122,18 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
     nonce_bytes = bytes.fromhex(NONCE_HEX[2:])
     d = issued_at[:10]
     checks = [
-        check("liveness", "pass", f"{d}T09:00:00.210Z", "recomputable_from_client_view",
+        check("endpoint.health", "pass", f"{d}T09:00:00.210Z", "recomputable_from_client_view",
               {"http_status": 402, "payment_requirements_sha256": sha256_hex(jcs(PAYMENT_REQUIREMENTS))}),
-        check("price_vs_listing", "warn", f"{d}T09:00:00.260Z", "recomputable_from_client_view",
+        check("terms.price_vs_listing", "warn", f"{d}T09:00:00.260Z", "recomputable_from_client_view",
               {"requested_atomic": "4500000", "listed_atomic": "3000000",
                "listing_source": "https://api.example-seller.test/.well-known/x402-listing (example)",
                "listing_sha256": sha256_hex(b"example listing document")}),
-        check("payto_change", "pass", f"{d}T09:00:00.300Z", "issuer_assertion",
+        check("payto.change", "pass", f"{d}T09:00:00.300Z", "issuer_assertion",
               {"payto_first_seen_at": "2026-11-13T10:00:00Z", "changes_since_first_seen": 0}),
-        check("payee_wallet_age", "warn", f"{d}T09:00:00.640Z", "recomputable_from_chain",
+        check("payee.wallet_risk", "warn", f"{d}T09:00:00.640Z", "recomputable_from_chain",
               {"network": "eip155:8453", "first_tx_block": 22000000, "first_tx_hash": "0x" + "ab" * 32,
                "age_days_at_check": 6}),
-        check("sanctions_list", "pass", f"{d}T09:00:00.700Z", "issuer_assertion",
+        check("x-polkulab.sanctions_list", "pass", f"{d}T09:00:00.700Z", "issuer_assertion",
               {"list": "OFAC SDN (digital currency addresses)", "list_snapshot_date": "2026-11-18",
                "list_snapshot_sha256": sha256_hex(b"example list snapshot"), "match": False}),
     ]
@@ -144,7 +145,7 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
         "issuer": "https://trypolkulab.com",
         "signing_key": {
             "key_id": KEY_ID,
-            "keyset_uri": "https://trypolkulab.com/.well-known/x402-decision-keyset.json",
+            "keyset_uri": KEYSET_URI,
         },
         "payment": {
             "x402_version": 1,
@@ -208,7 +209,7 @@ def base_record(issued_at="2026-11-19T09:00:00.910Z", valid_after="2026-11-19T08
             {"code": "RESOURCE_DELIVERY", "text": "Whether the seller delivered the resource after payment."},
             {"code": "RESOURCE_QUALITY", "text": "Whether the delivered content was correct, fresh or fit for purpose."},
             {"code": "PAYEE_LEGAL_IDENTITY", "text": "Who legally owns the payee wallet. No KYC/KYB was performed."},
-            {"code": "LISTS_NOT_CHECKED", "text": "Sanctions or risk lists other than the one named in the sanctions_list check, and list changes after its snapshot date."},
+            {"code": "LISTS_NOT_CHECKED", "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."},
             {"code": "PRINCIPAL_AUTHORIZATION", "text": "Whether the human or organisation behind the payer agent approved this payment."},
             {"code": "FUTURE_STATE", "text": "Anything that happened after decision_issued_at."},
         ],
@@ -268,6 +269,21 @@ def main() -> None:
     dump(TV / "linked" / "content-time-record.json", CONTENT_TIME_RECORD)
     dump(TV / "linked" / "seller-attestation.json", SELLER_ATTESTATION)
     dump(ROOT / "verifier" / "demo-keyset.json", keyset)
+    (ROOT / ".well-known").mkdir(exist_ok=True)
+    dump(ROOT / ".well-known" / "x402-decision-keyset.json", keyset)
+    # Example of a later record linking to a decision record: hash = jcs(record), signature INCLUDED.
+    outcome = {
+        "_note": "EXAMPLE DATA ONLY. Unsigned stand-in for a later outcome record that links to valid.json.",
+        "record_type": "example-outcome-record",
+        "issuer": "https://trypolkulab.com",
+        "status": "settled",
+        "tx_hash": "0x" + "cd" * 32,
+        "links": [{"rel": "decision_record", "issuer": "https://trypolkulab.com",
+                   "record_sha256": h("jcs(record)", jcs(valid)), "evidence_ceiling": "issuer_assertion"}],
+    }
+    dump(TV / "example-outcome-record.json", outcome)
+    keyset_bytes = (ROOT / ".well-known" / "x402-decision-keyset.json").read_bytes()
+    print("keyset.json sha256 (release-notes anchor):", sha256_hex(keyset_bytes))
     dump(TV / "expected.json", {
         "_note": "Expected verifier results (keyset-demo.json unless stated).",
         "valid.json": {"status": "VALID"},

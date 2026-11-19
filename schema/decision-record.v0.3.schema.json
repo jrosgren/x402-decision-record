@@ -18,7 +18,7 @@
       "required": ["key_id", "keyset_uri"],
       "properties": {
         "key_id": {"type": "string", "minLength": 1},
-        "keyset_uri": {"type": "string", "format": "uri"}
+        "keyset_uri": {"type": "string", "format": "uri", "description": "Primary keyset location; v1.0.0: https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"}
       }
     },
     "payment": {
@@ -28,7 +28,7 @@
       "properties": {
         "x402_version": {"type": "integer", "minimum": 1},
         "scheme": {"type": "string"},
-        "network": {"type": "string", "description": "CAIP-2 chain id, e.g. eip155:8453"},
+        "network": {"type": "string", "pattern": "^eip155:[0-9]+$", "description": "CAIP-2 chain id. v0.3 / v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."},
         "asset": {"type": "string"},
         "asset_symbol": {"type": "string"},
         "asset_decimals": {"type": "integer", "minimum": 0},
@@ -69,7 +69,7 @@
         "additionalProperties": false,
         "required": ["id", "result", "ran_at", "evidence_ceiling", "evidence_sha256"],
         "properties": {
-          "id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+          "id": {"type": "string", "pattern": "^(x-[a-z0-9-]+\\.)?[a-z0-9_]+(\\.[a-z0-9_]+)*$", "description": "Registered ids: endpoint.health, terms.price_vs_listing, payto.change, payee.wallet_risk. Custom ids use the prefix x-<issuer>. Verifiers MUST ignore unknown ids rather than reject the record."},
           "result": {"enum": ["pass", "warn", "fail", "error", "skipped"]},
           "ran_at": {"$ref": "#/$defs/timestamp"},
           "evidence_ceiling": {"$ref": "#/$defs/ceiling"},
@@ -108,7 +108,7 @@
           "scope": {"type": "string"},
           "expires_at": {"$ref": "#/$defs/timestamp"},
           "uri": {"type": "string", "format": "uri"},
-          "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(linked-record)", "raw(linked-record)"]}}},
+          "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(record)", "jcs(linked-record)", "raw(linked-record)"]}}},
           "evidence_ceiling": {"$ref": "#/$defs/ceiling"}
         }
       }

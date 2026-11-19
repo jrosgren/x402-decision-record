@@ -18,7 +18,17 @@ The SHA-256 of the valid example's canonical bytes is:
 
 ## v0.3-draft records
 
-v0.3 records are checked against a **keyset** (key id, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json). Run from the repository root:
+v0.3 records are checked against a **keyset** (key id, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json).
+
+**Where the keyset is published (from v1.0.0):**
+
+1. **Primary:** https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json (the `keyset_uri` in each record).
+2. **Secondary:** the `keyset.json` asset on the GitHub release tag `v1.0.0`.
+3. A third copy on trypolkulab.com may follow later. It is optional.
+
+The release notes carry the SHA-256 of `keyset.json`. Check your copy against it with `--keyset-sha256`. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`). Unknown check ids are reported as info and never make a record invalid.
+
+Run from the repository root:
 
 ```bash
 python3 verifier/verify.py test-vectors/v0.3/valid.json                 # VALID
@@ -28,6 +38,8 @@ python3 verifier/verify.py test-vectors/v0.3/valid.json \
 python3 verifier/verify.py test-vectors/v0.3/valid.json \
     --binding-inputs test-vectors/v0.3/binding-inputs.json \
     --linked test-vectors/v0.3/linked/*.json --json                     # also recompute binding and link hashes
+python3 verifier/verify.py test-vectors/v0.3/valid.json \
+    --keyset .well-known/x402-decision-keyset.json --keyset-sha256 <hex from release notes>
 ```
 
 `verify.html` has buttons for the v0.3 examples, a keyset field (prefilled with the demo keyset) and an optional binding-inputs field. It still makes no network calls.

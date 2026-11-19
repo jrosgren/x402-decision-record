@@ -10,6 +10,10 @@
     "example_data": {"type": "boolean"},
     "issuer": {"type": "string", "format": "uri"},
     "published_at": {"type": "string"},
+    "keyset_signature": {
+      "type": ["object", "null"],
+      "description": "RESERVED for v1.1 (signature by a KMS-held root key). Not used in v1.0: issuers SHOULD omit it and v1.0 verifiers MUST ignore it."
+    },
     "keys": {
       "type": "array",
       "minItems": 1,

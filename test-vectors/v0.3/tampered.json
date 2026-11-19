@@ -6,7 +6,7 @@
   "issuer": "https://trypolkulab.com",
   "signing_key": {
     "key_id": "polkulab-demo-2026-11",
-    "keyset_uri": "https://trypolkulab.com/.well-known/x402-decision-keyset.json"
+    "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
   },
   "payment": {
     "x402_version": 1,
@@ -47,7 +47,7 @@
   },
   "checks": [
     {
-      "id": "liveness",
+      "id": "endpoint.health",
       "result": "pass",
       "ran_at": "2026-11-19T09:00:00.210Z",
       "evidence_ceiling": "recomputable_from_client_view",
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "price_vs_listing",
+      "id": "terms.price_vs_listing",
       "result": "warn",
       "ran_at": "2026-11-19T09:00:00.260Z",
       "evidence_ceiling": "recomputable_from_client_view",
@@ -79,7 +79,7 @@
       }
     },
     {
-      "id": "payto_change",
+      "id": "payto.change",
       "result": "pass",
       "ran_at": "2026-11-19T09:00:00.300Z",
       "evidence_ceiling": "issuer_assertion",
@@ -94,7 +94,7 @@
       }
     },
     {
-      "id": "payee_wallet_age",
+      "id": "payee.wallet_risk",
       "result": "warn",
       "ran_at": "2026-11-19T09:00:00.640Z",
       "evidence_ceiling": "recomputable_from_chain",
@@ -111,7 +111,7 @@
       }
     },
     {
-      "id": "sanctions_list",
+      "id": "x-polkulab.sanctions_list",
       "result": "pass",
       "ran_at": "2026-11-19T09:00:00.700Z",
       "evidence_ceiling": "issuer_assertion",
@@ -196,7 +196,7 @@
     },
     {
       "code": "LISTS_NOT_CHECKED",
-      "text": "Sanctions or risk lists other than the one named in the sanctions_list check, and list changes after its snapshot date."
+      "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."
     },
     {
       "code": "PRINCIPAL_AUTHORIZATION",
@@ -211,7 +211,7 @@
     "alg": "Ed25519",
     "key_id": "polkulab-demo-2026-11",
     "canonicalization": "RFC 8785 (JCS) of the record without the signature member",
-    "sha256": "09a2313a817c828c649da53704c6f54e28a3a46fb92f67fd7dd7137716dde9c8",
-    "sig_base64": "YkYhuXL78sJ8RKzKqnJCjYzIXggLcpNRyxfvQZpd92kgBu1PJb7ACP0rXFzZjAM6utmCRjctT66YNqr0E74hCQ=="
+    "sha256": "8ca296a145841d8293ec996eca26d15014e46efc7db535f2e2a14a1e0db88f9e",
+    "sig_base64": "9qOxSkYafio+OE2IIzWX9l82wOST8QqvGkFKhpe92CsBmXP/1dwnY3KEM2nIsBfkLLf4YZziPbWio7b4VqDnCQ=="
   }
 }

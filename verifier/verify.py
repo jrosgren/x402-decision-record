@@ -16,7 +16,11 @@ v0.3 adds, all checked offline (this script makes no network calls):
   * timeline order (checks ran after the authorization was presented and
     before the decision; decision before authorization valid_before);
   * optional recomputation of the payment binding hashes from raw inputs;
-  * optional recomputation of linked record hashes.
+  * optional recomputation of linked record hashes;
+  * check ids against the minimal registry (unknown ids are only reported);
+  * network must be an EVM CAIP-2 id (eip155:<chain id>) in v0.3 / v1.0;
+  * optional --keyset-sha256: the keyset file must match the SHA-256 anchor
+    published in the release notes.
 
 If the rfc8785 package is installed it is used for canonicalization;
 otherwise json.dumps(sort_keys=True, separators=(',', ':'),
@@ -42,6 +46,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CEILINGS = {"recomputable_from_chain", "recomputable_from_client_view", "issuer_assertion"}
+# Minimal check-id registry (SPEC §6.2). Custom ids use the prefix "x-<issuer>.".
+# Unknown ids are reported as info and MUST NOT make a record invalid.
+CHECK_REGISTRY = {"endpoint.health", "terms.price_vs_listing", "payto.change", "payee.wallet_risk"}
+NETWORK_PREFIX = "eip155:"  # v1.0 covers EVM chains only (CAIP-2), SPEC §4
 
 
 # ------------------------------------------------------------ primitives
@@ -176,7 +184,13 @@ def verify_v03(rec: dict, keyset: dict | None = None, pub_pem: str | None = None
         warnings.append("EMBEDDED_SHA256_MISMATCH")
 
     # evidence hashes and ceilings
+    network = str(body.get("payment", {}).get("network", ""))
+    if not (network.startswith(NETWORK_PREFIX) and network[len(NETWORK_PREFIX):].isdigit()):
+        errors.append(f"UNSUPPORTED_NETWORK:{network}")
     for c in body.get("checks", []):
+        cid = str(c.get("id"))
+        if cid not in CHECK_REGISTRY:
+            info.append(f"{'CUSTOM' if cid.startswith('x-') else 'UNKNOWN'}_CHECK_ID:{cid}")
         if c.get("evidence_ceiling") not in CEILINGS:
             errors.append(f"BAD_EVIDENCE_CEILING:{c.get('id')}")
         eh = c.get("evidence_sha256", {})
@@ -259,6 +273,7 @@ def main() -> None:
     ap.add_argument("record")
     ap.add_argument("pubkey", nargs="?", help="PEM public key (skips keyset validity checks for v0.3)")
     ap.add_argument("--keyset")
+    ap.add_argument("--keyset-sha256", help="expected hex SHA-256 of the keyset file bytes (anchor from the release notes)")
     ap.add_argument("--binding-inputs")
     ap.add_argument("--linked", nargs="*", default=[])
     ap.add_argument("--json", action="store_true")
@@ -268,7 +283,12 @@ def main() -> None:
     if a.pubkey:
         kw["pub_pem"] = Path(a.pubkey).read_text()
     if a.keyset or (not a.pubkey and str(rec.get("schema_version", "")).startswith("0.3")):
-        kw["keyset"] = json.loads(Path(a.keyset or HERE / "demo-keyset.json").read_text())
+        ks_bytes = Path(a.keyset or HERE / "demo-keyset.json").read_bytes()
+        if a.keyset_sha256 and sha256_hex(ks_bytes) != a.keyset_sha256.lower():
+            print("INVALID")
+            print("errors: KEYSET_SHA256_MISMATCH (keyset file does not match the release anchor)")
+            sys.exit(1)
+        kw["keyset"] = json.loads(ks_bytes)
     if a.binding_inputs:
         kw["binding_inputs"] = json.loads(Path(a.binding_inputs).read_text())
     if a.linked:

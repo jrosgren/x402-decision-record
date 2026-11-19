@@ -101,13 +101,13 @@ class V03Vectors(unittest.TestCase):
         rec = load(TV / "valid.json")
         rec["checks"][0]["evidence"]["http_status"] = 200
         r = verify.verify_record(rec, keyset=KEYSET)
-        self.assertIn("EVIDENCE_HASH_MISMATCH:liveness", r["errors"])
+        self.assertIn("EVIDENCE_HASH_MISMATCH:endpoint.health", r["errors"])
 
     def test_withheld_evidence_is_info(self):
         rec = load(TV / "valid.json")
         del rec["checks"][0]["evidence"]
         r = verify.verify_record(rec, keyset=KEYSET)
-        self.assertIn("EVIDENCE_WITHHELD:liveness", r["info"])
+        self.assertIn("EVIDENCE_WITHHELD:endpoint.health", r["info"])
         self.assertIn("BAD_SIGNATURE", r["errors"])  # removing it changes signed bytes
 
     def test_signature_bytes_match_embedded_sha(self):
@@ -116,6 +116,59 @@ class V03Vectors(unittest.TestCase):
             body = copy.deepcopy(rec)
             body.pop("signature")
             self.assertEqual(verify.sha256_hex(verify.canonicalize(body)), rec["signature"]["sha256"], f)
+
+
+    def test_custom_and_unknown_check_ids_do_not_invalidate(self):
+        r = verify.verify_record(load(TV / "valid.json"), keyset=KEYSET)
+        self.assertEqual(r["status"], "VALID")
+        self.assertIn("CUSTOM_CHECK_ID:x-polkulab.sanctions_list", r["info"])
+        # an unregistered id inside a validly signed record: verifier must ignore, not reject
+        rec = load(TV / "valid.json")
+        rec["checks"][0]["id"] = "some.future_check"
+        r = verify.verify_record(rec, pub_pem=(ROOT / "verifier/demo-pub.pem").read_text())
+        self.assertIn("UNKNOWN_CHECK_ID:some.future_check", r["info"])
+        self.assertNotIn("UNKNOWN_CHECK_ID:some.future_check", r["errors"])
+        self.assertEqual([e for e in r["errors"] if "CHECK_ID" in e], [])
+
+    def test_registry_ids_used(self):
+        ids = [c["id"] for c in load(TV / "valid.json")["checks"]]
+        for want in ("endpoint.health", "terms.price_vs_listing", "payto.change", "payee.wallet_risk"):
+            self.assertIn(want, ids)
+
+    def test_non_evm_network_rejected(self):
+        rec = load(TV / "valid.json")
+        rec["payment"]["network"] = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+        self.assertIn("UNSUPPORTED_NETWORK:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                      verify.verify_record(rec, keyset=KEYSET)["errors"])
+
+    def test_linked_decision_record_hash_includes_signature(self):
+        outcome = load(TV / "example-outcome-record.json")
+        link = outcome["links"][0]
+        self.assertEqual(link["record_sha256"]["input"], "jcs(record)")
+        full = load(TV / "valid.json")
+        self.assertEqual(verify.sha256_hex(verify.canonicalize(full)), link["record_sha256"]["hex"])
+        body = copy.deepcopy(full); body.pop("signature")
+        self.assertNotEqual(verify.sha256_hex(verify.canonicalize(body)), link["record_sha256"]["hex"])
+
+    def test_keyset_copies_identical_and_anchor(self):
+        a = (ROOT / ".well-known/x402-decision-keyset.json").read_bytes()
+        self.assertEqual(a, (ROOT / "verifier/demo-keyset.json").read_bytes())
+        self.assertEqual(a, (TV / "keyset-demo.json").read_bytes())
+        self.assertTrue((ROOT / ".nojekyll").exists())
+        rec = str(TV / "valid.json"); ks = str(ROOT / ".well-known/x402-decision-keyset.json")
+        good = verify.sha256_hex(a)
+        p = subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), rec, "--keyset", ks, "--keyset-sha256", good],
+                           capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stdout)
+        p = subprocess.run([sys.executable, str(ROOT / "verifier/verify.py"), rec, "--keyset", ks, "--keyset-sha256", "0" * 64],
+                           capture_output=True, text=True)
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("KEYSET_SHA256_MISMATCH", p.stdout)
+
+    def test_reserved_keyset_signature_ignored(self):
+        ks = copy.deepcopy(KEYSET)
+        ks["keyset_signature"] = {"alg": "reserved-v1.1", "sig_base64": "AAAA"}
+        self.assertEqual(verify.verify_record(load(TV / "valid.json"), keyset=ks)["status"], "VALID")
 
 
 @unittest.skipUnless(__import__("importlib").util.find_spec("jsonschema"), "jsonschema not installed")
@@ -136,6 +189,18 @@ class Schema(unittest.TestCase):
         s = load(ROOT / "schema/keyset.v0.3.schema.json")
         for f in ("keyset-demo.json", "keyset-revoked.json"):
             jsonschema.Draft202012Validator(s).validate(load(TV / f))
+        ks = load(TV / "keyset-demo.json"); ks["keyset_signature"] = None
+        jsonschema.Draft202012Validator(s).validate(ks)
+
+    def test_schema_network_and_check_ids(self):
+        import jsonschema
+        v = jsonschema.Draft202012Validator(load(ROOT / "schema/decision-record.v0.3.schema.json"))
+        rec = load(TV / "valid.json"); rec["payment"]["network"] = "solana:mainnet"
+        self.assertFalse(v.is_valid(rec))
+        rec = load(TV / "valid.json"); rec["checks"][0]["id"] = "x-acme.my_check"
+        self.assertTrue(v.is_valid(rec))  # custom ids are schema-valid (signature is a separate matter)
+        rec["checks"][0]["id"] = "Bad Id"
+        self.assertFalse(v.is_valid(rec))
 
 
 if __name__ == "__main__":

@@ -29,6 +29,8 @@ This is a question, not a finished proposal: would a shared format be useful, or
 - [`SPEC.md`](./SPEC.md) — v0.3-draft spec and changelog vs v0.2
 - [`schema/`](./schema/) — JSON Schema 2020-12 for the record and the keyset
 - [`test-vectors/v0.3/`](./test-vectors/v0.3/) — valid, tampered, wrong-key, expired-key and revoked-key cases (example data)
+- [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json): demo keyset at its published location (primary copy, served by GitHub Pages)
+- [`RELEASING.md`](./RELEASING.md): release steps and the keyset SHA-256 anchor
 - [`tests/`](./tests/) — `bash tests/run_all.sh`
 - [`verifier/`](./verifier/) — a standalone third-party check: open [`verifier/verify.html`](./verifier/verify.html) in a browser (no network calls; nothing leaves the device), or use `verifier/verify.py` / OpenSSL. Includes a valid signed example and a tampered copy (score 62→30, original signature kept) so you can see a pass and a fail. Demo key id: `polkulab-demo-2026-11`.
 

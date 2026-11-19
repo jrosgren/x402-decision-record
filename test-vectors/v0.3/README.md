@@ -15,7 +15,10 @@ Other files:
 - `keyset-demo.json`: the demo keyset.
 - `keyset-revoked.json`: the same keyset with the demo key revoked, for tests.
 - `binding-inputs.json`: the raw nonce, payment requirements and request behind the binding hashes.
+- `example-outcome-record.json`: an unsigned example of a later record linking to `valid.json` with `jcs(record)`, which hashes the whole record including its signature.
 - `linked/`: the example linked records whose hashes appear in `links`.
 - `expected.json`: machine-readable expectations.
+
+The checks use the registry ids `endpoint.health`, `terms.price_vs_listing`, `payto.change` and `payee.wallet_risk`, plus one custom check, `x-polkulab.sanctions_list`.
 
 Regenerate with `python3 tools/make_vectors.py --key <demo private key>`. Ed25519 is deterministic, so every vector except `wrong-key.json` is byte-identical on each run.

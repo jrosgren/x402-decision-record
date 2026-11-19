@@ -55,7 +55,18 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
   const bad = JSON.parse(JSON.stringify(binding)); bad.authorization_nonce = '0x' + '00'.repeat(32);
   r = await V.verifyRecord(load(tv + 'valid.json'), Object.assign({ keyset, bindingInputs: bad }, mode));
   check(tag + ' wrong nonce', r.status === 'INVALID' && r.errors.includes('BINDING_HASH_MISMATCH:eip3009-nonce-bytes32'), r);
+  r = await V.verifyRecord(load(tv + 'valid.json'), Object.assign({ keyset }, mode));
+  check(tag + ' custom check id is info only', r.status === 'VALID' && r.info.includes('CUSTOM_CHECK_ID:x-polkulab.sanctions_list'), r);
+  const sol = load(tv + 'valid.json'); sol.payment.network = 'solana:mainnet';
+  r = await V.verifyRecord(sol, Object.assign({ keyset }, mode));
+  check(tag + ' non-EVM network rejected', r.errors.includes('UNSUPPORTED_NETWORK:solana:mainnet'), r);
+  const unk = load(tv + 'valid.json'); unk.checks[0].id = 'some.future_check';
+  r = await V.verifyRecord(unk, Object.assign({ keyset }, mode));
+  check(tag + ' unknown check id not an error', r.info.includes('UNKNOWN_CHECK_ID:some.future_check') && !r.errors.some(e => e.includes('CHECK_ID')), r);
 }
+// jcs(record): link hash over the whole decision record incl. signature
+const outcome = load(tv + 'example-outcome-record.json');
+check('jcs(record) link hash matches', (await V.sha256Hex(V.canonicalizeBytes(load(tv + 'valid.json')))) === outcome.links[0].record_sha256.hex, null);
 check('embedded vectors equal files', JSON.stringify(V.DEMO_V03.valid) === JSON.stringify(load(tv + 'valid.json')) &&
   JSON.stringify(V.DEMO_V03.wrong_key) === JSON.stringify(load(tv + 'wrong-key.json')), null);
 
