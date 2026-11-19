@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v0.3.schema.json",
+  "title": "x402 pre-payment decision record, v0.3-draft",
+  "description": "DRAFT. Signed record of a check made before an x402 payment. See SPEC.md. Planned to be frozen as v1.0 on 2026-11-24.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "record_id", "issuer", "signing_key", "payment", "timeline", "checks", "decision", "field_evidence_ceilings", "not_covered", "signature"],
+  "properties": {
+    "schema_version": {"const": "0.3-draft"},
+    "record_type": {"const": "x402-pre-payment-decision"},
+    "record_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "example_data": {"type": "boolean", "description": "true for illustrations and test vectors. Production records omit it or set false."},
+    "issuer": {"type": "string", "format": "uri"},
+    "signing_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key_id", "keyset_uri"],
+      "properties": {
+        "key_id": {"type": "string", "minLength": 1},
+        "keyset_uri": {"type": "string", "format": "uri"}
+      }
+    },
+    "payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402_version", "scheme", "network", "asset", "amount_atomic", "payer", "payee", "resource", "authorization", "payment_requirements_sha256", "request_sha256", "tx_hash"],
+      "properties": {
+        "x402_version": {"type": "integer", "minimum": 1},
+        "scheme": {"type": "string"},
+        "network": {"type": "string", "description": "CAIP-2 chain id, e.g. eip155:8453"},
+        "asset": {"type": "string"},
+        "asset_symbol": {"type": "string"},
+        "asset_decimals": {"type": "integer", "minimum": 0},
+        "amount_atomic": {"$ref": "#/$defs/uintString"},
+        "payer": {"type": "string"},
+        "payee": {"type": "string"},
+        "resource": {"type": "string", "format": "uri"},
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["nonce_sha256", "valid_before"],
+          "properties": {
+            "nonce_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "eip3009-nonce-bytes32"}}},
+            "valid_after": {"$ref": "#/$defs/timestamp"},
+            "valid_before": {"$ref": "#/$defs/timestamp"}
+          }
+        },
+        "payment_requirements_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(payment_requirements)"}}},
+        "request_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(resource_request)"}}},
+        "tx_hash": {"type": ["string", "null"], "description": "null when the record is signed before settlement (the normal case)."}
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirements_received_at", "authorization_presented_at", "decision_issued_at"],
+      "properties": {
+        "requirements_received_at": {"$ref": "#/$defs/timestamp"},
+        "authorization_presented_at": {"$ref": "#/$defs/timestamp"},
+        "decision_issued_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "result", "ran_at", "evidence_ceiling", "evidence_sha256"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+          "result": {"enum": ["pass", "warn", "fail", "error", "skipped"]},
+          "ran_at": {"$ref": "#/$defs/timestamp"},
+          "evidence_ceiling": {"$ref": "#/$defs/ceiling"},
+          "evidence_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(evidence)"}}},
+          "evidence": {"type": "object", "description": "Optional inline evidence. If present, its JCS hash must equal evidence_sha256.hex."}
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "score", "reason_codes", "policy_id"],
+      "properties": {
+        "verdict": {"enum": ["allow", "warn", "deny"]},
+        "score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "level": {"enum": ["low", "medium", "high"]},
+        "reason_codes": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9_]+$"}},
+        "policy_id": {"type": "string"},
+        "payer_agent_id": {"type": "string"}
+      }
+    },
+    "field_evidence_ceilings": {
+      "type": "object",
+      "propertyNames": {"pattern": "^(/[^/]+)+$"},
+      "additionalProperties": {"$ref": "#/$defs/ceiling"}
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rel", "issuer", "record_sha256"],
+        "properties": {
+          "rel": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+          "issuer": {"type": "string", "format": "uri"},
+          "scope": {"type": "string"},
+          "expires_at": {"$ref": "#/$defs/timestamp"},
+          "uri": {"type": "string", "format": "uri"},
+          "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(linked-record)", "raw(linked-record)"]}}},
+          "evidence_ceiling": {"$ref": "#/$defs/ceiling"}
+        }
+      }
+    },
+    "not_covered": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "text"],
+        "properties": {
+          "code": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+          "text": {"type": "string"}
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "key_id", "sig_base64"],
+      "properties": {
+        "alg": {"const": "Ed25519"},
+        "key_id": {"type": "string"},
+        "canonicalization": {"type": "string"},
+        "sha256": {"$ref": "#/$defs/hex64"},
+        "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$"}
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$", "description": "RFC 3339, UTC, Z suffix."},
+    "uintString": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+    "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ceiling": {"enum": ["recomputable_from_chain", "recomputable_from_client_view", "issuer_assertion"]},
+    "hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "input", "hex"],
+      "properties": {
+        "alg": {"const": "sha-256"},
+        "input": {"type": "string"},
+        "hex": {"$ref": "#/$defs/hex64"}
+      }
+    }
+  }
+}

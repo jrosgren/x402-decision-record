@@ -1,6 +1,6 @@
 # Third-party verifier for an AgentTrust decision record
 
-**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. The format is unpublished draft v0.2.
+**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. This folder verifies format v0.2-draft and v0.3-draft (see [`../SPEC.md`](../SPEC.md)). v0.3 is planned to be frozen as v1.0 on 24.11.2026, with release v1.0.0 by 25.11.2026.
 
 A third party can check that a record has not been changed since it was signed, without access to Polkulab systems and without trusting Polkulab's own logs. Verification uses only the record, the public key, and open algorithms.
 
@@ -16,7 +16,25 @@ The SHA-256 of the valid example's canonical bytes is:
 
 `record-tampered.json` is the same record with `score` changed from 62 to 30 and the original signature kept, so a check must fail.
 
-## Three ways to verify
+## v0.3-draft records
+
+v0.3 records are checked against a **keyset** (key id, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json). Run from the repository root:
+
+```bash
+python3 verifier/verify.py test-vectors/v0.3/valid.json                 # VALID
+python3 verifier/verify.py test-vectors/v0.3/expired-key.json           # INVALID KEY_NOT_VALID_AT_ISSUANCE
+python3 verifier/verify.py test-vectors/v0.3/valid.json \
+    --keyset test-vectors/v0.3/keyset-revoked.json                      # INVALID KEY_REVOKED
+python3 verifier/verify.py test-vectors/v0.3/valid.json \
+    --binding-inputs test-vectors/v0.3/binding-inputs.json \
+    --linked test-vectors/v0.3/linked/*.json --json                     # also recompute binding and link hashes
+```
+
+`verify.html` has buttons for the v0.3 examples, a keyset field (prefilled with the demo keyset) and an optional binding-inputs field. It still makes no network calls.
+
+All tests: `bash tests/run_all.sh` (Python unittest, OpenSSL by hand, headless Node running the page's JavaScript through both Web Crypto and tweetnacl).
+
+## Three ways to verify (v0.2 example)
 
 ### 1. In the browser (no install, nothing leaves your device)
 
@@ -79,5 +97,6 @@ sha256sum canon.json
 - `record-valid.json` — signed example (example data)
 - `record-tampered.json` — same record with `score` 62 → 30 and the original signature kept
 - `demo-pub.pem` — demo Ed25519 public key (`polkulab-demo-2026-11`)
+- `demo-keyset.json` — demo keyset for v0.3 (validity window 2026-11-01 to 2027-01-01)
 
 The corresponding private demo key is not in this folder and is not published.
