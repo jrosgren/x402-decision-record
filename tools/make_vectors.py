@@ -438,6 +438,17 @@ def main() -> None:
     for name, net in (("network-leading-zero.json", "eip155:08453"), ("network-zero.json", "eip155:0")):
         dump(NEG / name, mutated(key, lambda r, net=net: set_path(r, ["payment", "network"], net), "at_dr_neg_" + name[:-5].replace("-", "_")))
 
+    # strict text parsing of binding inputs and linked records (written as text)
+    btext = (TV / "binding-inputs.json").read_text(encoding="utf-8")
+    for name, old, new in (("binding-inputs-duplicate-member.json", '"amount": "4500000",', '"amount": "1",\n    "amount": "4500000",'),
+                           ("binding-inputs-float.json", '"maxTimeoutSeconds": 300,', '"maxTimeoutSeconds": 300.0,')):
+        assert btext.count(old) == 1
+        (NEG / name).write_text(btext.replace(old, new), encoding="utf-8")
+    stext = (TV / "linked" / "seller-attestation.json").read_text(encoding="utf-8")
+    assert stext.count('"scope": ') == 1
+    (NEG / "linked-duplicate-member.json").write_text(stext.replace('"scope": ', '"scope": "anything",\n  "scope": ', 1), encoding="utf-8")
+    (NEG / "linked-not-json.json").write_text('{"record_type": "example-seller-attestation",}\n', encoding="utf-8")
+
     # legacy 0.2-draft (SPEC §11.1)
     v02 = json.loads((ROOT / "verifier" / "record-valid.json").read_text(encoding="utf-8"))
     v02_body = {k: v for k, v in v02.items() if k != "signature"}
@@ -546,6 +557,13 @@ def main() -> None:
     case("S1 duplicate member in keyset", "valid.json", "INVALID", ["DUPLICATE_MEMBER:keyset#/keys/0/status"], keyset="negative/keyset-duplicate-member.json")
     case("S3 network with leading zero", "negative/network-leading-zero.json", "INVALID", ["UNSUPPORTED_NETWORK:/payment/network"])
     case("S3 network eip155:0", "negative/network-zero.json", "INVALID", ["UNSUPPORTED_NETWORK:/payment/network"])
+    case("binding inputs with a duplicate member", "valid.json", "INVALID",
+         ["DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount"], binding_inputs="negative/binding-inputs-duplicate-member.json")
+    case("binding inputs with a float", "valid.json", "INVALID",
+         ["BAD_NUMBER:binding_inputs#/payment_requirements/maxTimeoutSeconds"], binding_inputs="negative/binding-inputs-float.json")
+    case("linked record with a duplicate member", "valid.json", "INVALID", ["DUPLICATE_MEMBER:linked[1]#/scope"],
+         linked=["linked/content-time-record.json", "negative/linked-duplicate-member.json"])
+    case("linked record that is not JSON", "valid.json", "INVALID", ["BAD_JSON:linked[0]#"], linked=["negative/linked-not-json.json"])
     # legacy 0.2-draft: only with allow_legacy_v02
     LV = "../../verifier/record-valid.json"
     V1_MEMBERS = ["record_type", "issuer", "signing_key", "payment", "timeline", "checks", "decision",

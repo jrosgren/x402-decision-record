@@ -44,7 +44,30 @@ python3 verifier/verify.py test-vectors/v1.0/valid.json \
     --keyset .well-known/x402-decision-keyset.json --keyset-sha256 958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745
 ```
 
-`verify.html` has buttons for the v1.0 examples, a keyset field (prefilled with the demo keyset), an anchor field, and optional binding-inputs and linked-records fields. It has the same checks as `verify.py`, including the anchor check and linked-record recomputation, and it still makes no network calls. Give it the record as text: JSON numbers such as `62.0` are only visible in the text.
+### Using the verifiers as a library: pass raw text
+
+The duplicate-member and number checks can only run on the JSON **text**. Once a parser has turned the text into an object, `{"score": 30, "score": 62}` has already become `{"score": 62}` and `62.0` has become `62`. So pass every input as the raw file contents:
+
+```python
+import verify  # verifier/verify.py
+res = verify.verify_record(
+    open("record.json", "rb").read(),                        # str or bytes, not json.load(...)
+    keyset_bytes=open("keyset.json", "rb").read(),           # also the bytes the anchor is computed over
+    keyset_sha256="<anchor from the release notes>",
+    binding_inputs=open("binding-inputs.json", "rb").read(), # optional
+    linked=[open(p, "rb").read() for p in linked_files],     # optional; or one text holding a JSON array
+)
+```
+
+```js
+const res = await AgentTrustVerifier.verifyRecord(recordText, {
+  keysetText, keysetSha256, bindingInputs: bindingText, linked: [linkedText1, linkedText2] // or one array text
+});
+```
+
+A parsed object is still accepted and verified, but the checks above cannot run on it, so the result then carries the warning `PARSED_INPUT:<record|keyset|binding_inputs|linked[i]>`. Treat a result with that warning as weaker than one from text. Errors in the optional inputs are labelled with where they came from, for example `DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount`, `BAD_NUMBER:binding_inputs#/payment_requirements/maxTimeoutSeconds`, `DUPLICATE_MEMBER:linked[1]#/scope` or `BAD_JSON:linked[0]#`. The `verify.py` command line always passes file bytes, including for `--binding-inputs` and `--linked`.
+
+`verify.html` has buttons for the v1.0 examples, a keyset field (prefilled with the demo keyset), an anchor field, and optional binding-inputs and linked-records fields. It has the same checks as `verify.py`, including the anchor check and linked-record recomputation, and it still makes no network calls. The page passes every field to the verifier as text, so the same strict checks apply to the record, keyset, binding-inputs and linked-records fields.
 
 All tests: `bash tests/run_all.sh` (Python unittest and Node both run every case in `test-vectors/v1.0/expected.json`, Node through both Web Crypto and tweetnacl; plus OpenSSL by hand and a headless Chrome run of the page itself).
 

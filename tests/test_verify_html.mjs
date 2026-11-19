@@ -38,8 +38,8 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
     const opts = Object.assign({}, mode);
     if (c.keyset) opts.keysetText = text(tv + c.keyset);
     if (c.keyset_sha256) opts.keysetSha256 = c.keyset_sha256;
-    if (c.binding_inputs) opts.bindingInputs = load(tv + c.binding_inputs);
-    if (c.linked) opts.linked = c.linked.map(p => load(tv + p));
+    if (c.binding_inputs) opts.bindingInputs = text(tv + c.binding_inputs);
+    if (c.linked) opts.linked = c.linked.map(p => text(tv + p));
     if (c.allow_legacy_v02) opts.allowLegacyV02 = true;
     const r = await V.verifyRecord(text(tv + c.record), opts);
     const ok = r.status === c.status && same(r.errors, c.errors) && same(r.warnings, c.warnings) &&
@@ -65,6 +65,16 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
     const r = await V.verifyRecord(text(tv + 'negative/number-float.json'), { keysetText: text(tv + 'keyset-demo.json') });
     check('62.0 rejected without ctx.source', r.status === 'INVALID' && same(r.errors, ['BAD_NUMBER:/decision/score']), r);
   } finally { JSON.parse = orig; }
+}
+// parsed objects are verified but flagged; text inputs are not
+{
+  const r = await V.verifyRecord(load(tv + 'valid.json'), { keyset: load(tv + 'keyset-demo.json'),
+    bindingInputs: load(tv + 'binding-inputs.json'), linked: [load(tv + 'linked/content-time-record.json')] });
+  check('parsed inputs give PARSED_INPUT warnings', r.status === 'VALID' && same(r.warnings.filter(w => w.startsWith('PARSED_INPUT')),
+    ['PARSED_INPUT:binding_inputs', 'PARSED_INPUT:keyset', 'PARSED_INPUT:linked[0]', 'PARSED_INPUT:record']), r);
+  const r2 = await V.verifyRecord(text(tv + 'valid.json'), { keysetText: text(tv + 'keyset-demo.json'),
+    linked: '[' + text(tv + 'linked/content-time-record.json') + ',' + text(tv + 'negative/linked-duplicate-member.json') + ']' });
+  check('linked as one text array', r2.status === 'INVALID' && same(r2.errors, ['DUPLICATE_MEMBER:linked#/1/scope']), r2);
 }
 // scanner unit checks (same results as verify.scan_json)
 {

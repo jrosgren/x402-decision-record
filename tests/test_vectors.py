@@ -33,9 +33,9 @@ def run_case(c):
     if c.get("keyset_sha256"):
         kw["keyset_sha256"] = c["keyset_sha256"]
     if c.get("binding_inputs"):
-        kw["binding_inputs"] = load(TV / c["binding_inputs"])
+        kw["binding_inputs"] = (TV / c["binding_inputs"]).read_bytes()
     if c.get("linked"):
-        kw["linked"] = [load(TV / p) for p in c["linked"]]
+        kw["linked"] = [(TV / p).read_bytes() for p in c["linked"]]
     kw["allow_legacy_v02"] = bool(c.get("allow_legacy_v02"))
     # records are passed as file text, so duplicate members and number spelling are checked exactly
     return verify.verify_record((TV / c["record"]).read_text(encoding="utf-8"), **kw)
@@ -77,7 +77,10 @@ class Schema(unittest.TestCase):
         lv = jsonschema.Draft202012Validator(verify.V02_SCHEMA)
         n = 0
         for p in sorted(TV.rglob("*.json")) + sorted((ROOT / "verifier").glob("record-*.json")):
-            doc = load(p)
+            try:
+                doc = load(p)
+            except ValueError:
+                continue  # negative/linked-not-json.json
             if not isinstance(doc, dict) or verify.number_errors(doc):
                 continue
             if "keyset_version" in doc:
@@ -129,6 +132,18 @@ class Primitives(unittest.TestCase):
             self.assertRaises(ValueError, verify.scan_json, t)
         self.assertEqual(verify.verify_record('{"a": NaN}')["errors"], ["BAD_JSON"])
 
+    def test_parsed_input_warns(self):
+        r = verify.verify_record(load(TV / "valid.json"), keyset=load(TV / "keyset-demo.json"),
+                                 binding_inputs=load(TV / "binding-inputs.json"), linked=[load(TV / "linked/content-time-record.json")])
+        self.assertEqual(r["status"], "VALID", r)
+        self.assertEqual(sorted(w for w in r["warnings"] if w.startswith("PARSED_INPUT")),
+                         ["PARSED_INPUT:binding_inputs", "PARSED_INPUT:keyset", "PARSED_INPUT:linked[0]", "PARSED_INPUT:record"])
+        # a parsed object hides 62.0 and duplicates: the text is rejected, the object only warned about
+        t = (TV / "negative/duplicate-member.json").read_text(encoding="utf-8")
+        self.assertEqual(verify.verify_record(t, keyset_bytes=(TV / "keyset-demo.json").read_bytes())["errors"], ["DUPLICATE_MEMBER:/decision/score"])
+        r = verify.verify_record((TV / "valid.json").read_text(encoding="utf-8"), keyset_bytes=(TV / "keyset-demo.json").read_bytes())
+        self.assertEqual((r["status"], r["warnings"]), ("VALID", []))
+
     def test_no_exceptions_on_garbage(self):
         for rec in ([], "x", {"signature": "x"}, {"schema_version": "1.0", "signature": {}}, {"schema_version": None, "signature": {}}):
             self.assertEqual(verify.verify_record(rec)["status"], "INVALID")
@@ -157,6 +172,18 @@ class Cli(unittest.TestCase):
     def test_v10_default_keyset(self):
         p = self.run_cli(TV / "valid.json")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_binding_and_linked_files_use_strict_parser(self):
+        for args, err in (
+            (["--binding-inputs", TV / "negative/binding-inputs-duplicate-member.json"], "DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount"),
+            (["--binding-inputs", TV / "negative/binding-inputs-float.json"], "BAD_NUMBER:binding_inputs#/payment_requirements/maxTimeoutSeconds"),
+            (["--linked", TV / "linked/content-time-record.json", TV / "negative/linked-duplicate-member.json"], "DUPLICATE_MEMBER:linked[1]#/scope"),
+            (["--linked", TV / "negative/linked-not-json.json"], "BAD_JSON:linked[0]#"),
+        ):
+            p = self.run_cli(TV / "valid.json", *args, "--json")
+            self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+            r = json.loads(p.stdout)
+            self.assertEqual((r["status"], r["errors"]), ("INVALID", [err]), r)
 
     def test_v10_pubkey_only_warns(self):
         p = self.run_cli(TV / "valid.json", ROOT / "verifier/demo-pub.pem", "--json")

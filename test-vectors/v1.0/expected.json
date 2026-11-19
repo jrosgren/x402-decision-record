@@ -573,6 +573,55 @@
       "warnings": []
     },
     {
+      "name": "binding inputs with a duplicate member",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-duplicate-member.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "binding inputs with a float",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-float.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_NUMBER:binding_inputs#/payment_requirements/maxTimeoutSeconds"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "linked record with a duplicate member",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "linked": [
+        "linked/content-time-record.json",
+        "negative/linked-duplicate-member.json"
+      ],
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:linked[1]#/scope"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "linked record that is not JSON",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "linked": [
+        "negative/linked-not-json.json"
+      ],
+      "status": "INVALID",
+      "errors": [
+        "BAD_JSON:linked[0]#"
+      ],
+      "warnings": []
+    },
+    {
       "name": "legacy v0.2 not enabled",
       "record": "../../verifier/record-valid.json",
       "keyset": "keyset-demo.json",

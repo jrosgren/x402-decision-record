@@ -52,7 +52,7 @@ The `signature` object (changed in v1.0):
 - Verifiers MUST reject a signature whose `S` (last 32 bytes, little-endian) is not below the group order `L` (RFC 8032 §5.1.7) → INVALID (`BAD_SIGNATURE`). This applies on every code path, including fallback libraries that skip the check (for example tweetnacl).
 - `signature.key_id` MUST equal `signing_key.key_id` (`KEY_ID_MISMATCH`). The copy inside the signed body stops key-id substitution.
 
-Duplicate members: a record or keyset MUST NOT contain the same member name twice in one object (RFC 8259 leaves the result undefined, and parsers differ on which value wins). Verifiers MUST check the text before or while parsing and report INVALID (`DUPLICATE_MEMBER:<pointer>`; in a keyset, `DUPLICATE_MEMBER:keyset#<pointer>`). Text that is not JSON (including `NaN` or `Infinity`) → INVALID (`BAD_JSON`).
+Duplicate members: a record or keyset MUST NOT contain the same member name twice in one object (RFC 8259 leaves the result undefined, and parsers differ on which value wins). Verifiers MUST check the text before or while parsing and report INVALID (`DUPLICATE_MEMBER:<pointer>`; in a keyset, `DUPLICATE_MEMBER:keyset#<pointer>`). Text that is not JSON (including `NaN` or `Infinity`) → INVALID (`BAD_JSON`). The same text rules apply to the optional binding inputs and linked records (§11 step 5), with the source in the pointer (`binding_inputs#<pointer>`, `linked[<i>]#<pointer>`). A verifier that is handed an already parsed object cannot apply them; the reference verifiers then add the warning `PARSED_INPUT:<input>`.
 
 Numbers: a record MUST NOT contain a number with a fraction or exponent part (`62.0`, `1e3`) anywhere, including inside `evidence`, and every integer MUST be within ±(2^53−1) (as in I-JSON, RFC 7493). Otherwise → INVALID (`BAD_NUMBER:<pointer>`). Amounts are decimal strings in atomic units; scores are integers. This keeps JCS identical across languages.
 
@@ -270,6 +270,8 @@ Follow-up review of `dcedfb5` (19.11):
 - **Duplicate members** (SHOULD): `DUPLICATE_MEMBER:<pointer>` for records and keysets (§3).
 - **Browser number check fails closed** (SHOULD): `verify.html` scans the JSON text itself instead of relying on `JSON.parse` source-text access, so `62.0` is rejected in every browser.
 - **CAIP-2 chain id** (SHOULD): `^eip155:[1-9][0-9]*$` (§4).
+
+Optional items from the approval of `96ecab0` (19.11): binding inputs and linked records go through the same strict text parser (`DUPLICATE_MEMBER`, `BAD_NUMBER`, `BAD_JSON`, labelled `binding_inputs#` / `linked[<i>]#`), and a parsed object passed instead of text gives the warning `PARSED_INPUT:<input>` (§3).
 
 ### 12.2 Changes vs v0.2-draft
 

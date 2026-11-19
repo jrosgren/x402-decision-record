@@ -1017,7 +1017,7 @@ const AgentTrustVerifier = (function () {
     "signature": {
       "alg": "Ed25519",
       "key_id": "polkulab-demo-2026-11",
-      "sig_base64": "E01cmYYW70d1cp2EcYIRbyv47ul5MvGiui4SuusEdgA1GE7wKW++vP2wkvvaj/GFPq0nfhlUrgp9pvfExHquBQ=="
+      "sig_base64": "yq8kGQZmwBF8tftllseyV3HCQerewOIlsJX1f60L628k42oGnOKkhYvxr3AKgeNHHFWG+SyYeI0P36DRv1RPCg=="
     }
   },
   "expired_key": {
@@ -1895,8 +1895,19 @@ const AgentTrustVerifier = (function () {
     return result(sigOk && errors.length === 0 ? 'VALID' : 'INVALID', rec, digest, errors, warnings, info, { method: method });
   }
 
-  // verifyRecord(record, options): record is JSON text (preferred: exact duplicate-member and
-  // number checks) or an object.
+  // Prefix the pointer part of each error with <label>#, as _label in verify.py.
+  function labelErrors(errors, label) {
+    return errors.map(function (e) {
+      const i = e.indexOf(':');
+      return i < 0 ? e + ':' + label + '#' : e.slice(0, i) + ':' + label + '#' + e.slice(i + 1);
+    });
+  }
+
+  // verifyRecord(record, options). Pass the record, keysetText, bindingInputs and linked as raw
+  // JSON text: only text can be checked for duplicate members (DUPLICATE_MEMBER) and number
+  // spelling (BAD_NUMBER). A parsed object is still verified, but the result then carries the
+  // warning PARSED_INPUT:<record|keyset|binding_inputs|linked[i]>. linked may be an array of
+  // texts/objects, or one text holding an array or an object.
   // options: { pem, keyset, keysetText, keysetSha256, bindingInputs, linked, allowLegacyV02,
   //            forceTweetnacl, forceWebCrypto }
   // (legacy call verifyRecord(record, pem, options) still works). Returns status VALID or INVALID.
@@ -1904,33 +1915,57 @@ const AgentTrustVerifier = (function () {
     const opts = (typeof pemOrOpts === 'string' || pemOrOpts == null)
       ? Object.assign({}, legacyOpts || {}, { pem: pemOrOpts })
       : Object.assign({}, pemOrOpts);
+    const notes = [];
+    function fin(r) { r.warnings = (r.warnings || []).concat(notes); return r; }
+    if (typeof record !== 'string') notes.push('PARSED_INPUT:record');
     const parsed = parseJsonText(typeof record === 'string' ? record : JSON.stringify(record));
     const rec = parsed.obj;
-    if (parsed.errors.length) return result('INVALID', rec, null, parsed.errors);
+    if (parsed.errors.length) return fin(result('INVALID', rec, null, parsed.errors));
     if (typeof opts.keysetText === 'string') {
       // B4: SHA-256 anchor over the exact keyset bytes, as verify.py --keyset-sha256
       if (opts.keysetSha256 && (await sha256Hex(new TextEncoder().encode(opts.keysetText))) !== String(opts.keysetSha256).toLowerCase()) {
-        return result('INVALID', rec, null, ['KEYSET_SHA256_MISMATCH']);
+        return fin(result('INVALID', rec, null, ['KEYSET_SHA256_MISMATCH']));
       }
       const kp = parseJsonText(opts.keysetText);
-      if (kp.errors.length) {
-        return result('INVALID', rec, null, kp.errors.map(function (e) {
-          const i = e.indexOf(':');
-          return i < 0 ? e + ':keyset#' : e.slice(0, i) + ':keyset#' + e.slice(i + 1);
-        }));
-      }
+      if (kp.errors.length) return fin(result('INVALID', rec, null, labelErrors(kp.errors, 'keyset')));
       opts.keyset = kp.obj;
     } else if (opts.keysetSha256) {
       throw new Error('keysetSha256 needs keysetText (the anchor is over the exact file bytes)');
+    } else if (opts.keyset) {
+      notes.push('PARSED_INPUT:keyset');
     }
-    if (!isObj(rec) || !isObj(rec.signature)) return result('INVALID', rec, null, ['BAD_SIGNATURE_OBJECT']);
+    let aux = [];
+    if (typeof opts.bindingInputs === 'string') {
+      const bp = parseJsonText(opts.bindingInputs);
+      aux = aux.concat(labelErrors(bp.errors, 'binding_inputs'));
+      opts.bindingInputs = bp.obj;
+    } else if (opts.bindingInputs !== undefined && opts.bindingInputs !== null) {
+      notes.push('PARSED_INPUT:binding_inputs');
+    }
+    if (typeof opts.linked === 'string') {
+      const lp = parseJsonText(opts.linked);
+      aux = aux.concat(labelErrors(lp.errors, 'linked'));
+      opts.linked = Array.isArray(lp.obj) ? lp.obj : [lp.obj];
+    } else if (Array.isArray(opts.linked)) {
+      opts.linked = opts.linked.map(function (item, i) {
+        if (typeof item === 'string') {
+          const lp = parseJsonText(item);
+          aux = aux.concat(labelErrors(lp.errors, 'linked[' + i + ']'));
+          return lp.obj;
+        }
+        notes.push('PARSED_INPUT:linked[' + i + ']');
+        return item;
+      });
+    }
+    if (aux.length) return fin(result('INVALID', rec, null, aux));
+    if (!isObj(rec) || !isObj(rec.signature)) return fin(result('INVALID', rec, null, ['BAD_SIGNATURE_OBJECT']));
     const v = rec.schema_version;
-    if (v === SCHEMA_VERSION) return verifyV10(rec, opts);
+    if (v === SCHEMA_VERSION) return fin(await verifyV10(rec, opts));
     if (v === LEGACY_V02) {
-      if (!opts.allowLegacyV02) return result('INVALID', rec, null, ['LEGACY_V02_NOT_ENABLED']);
-      return verifyLegacyV02(rec, opts);
+      if (!opts.allowLegacyV02) return fin(result('INVALID', rec, null, ['LEGACY_V02_NOT_ENABLED']));
+      return fin(await verifyLegacyV02(rec, opts));
     }
-    return result('INVALID', rec, null, ['UNSUPPORTED_SCHEMA_VERSION']);
+    return fin(result('INVALID', rec, null, ['UNSUPPORTED_SCHEMA_VERSION']));
   }
 
   return {
@@ -2012,11 +2047,9 @@ if (typeof globalThis !== 'undefined') {
       const opts = { pem: pubkeyEl.value.trim() || null, allowLegacyV02: !!(allowLegacyEl && allowLegacyEl.checked) };
       if (keysetEl && keysetEl.value.trim()) opts.keysetText = keysetEl.value;
       if (anchorEl && anchorEl.value.trim()) opts.keysetSha256 = anchorEl.value.trim();
-      if (bindingEl && bindingEl.value.trim()) opts.bindingInputs = JSON.parse(bindingEl.value);
-      if (linkedEl && linkedEl.value.trim()) {
-        const l = JSON.parse(linkedEl.value);
-        opts.linked = Array.isArray(l) ? l : [l];
-      }
+      // raw text, so the strict checks (duplicate members, numbers, BAD_JSON) apply to every field
+      if (bindingEl && bindingEl.value.trim()) opts.bindingInputs = bindingEl.value;
+      if (linkedEl && linkedEl.value.trim()) opts.linked = linkedEl.value;
       const result = await AgentTrustVerifier.verifyRecord(recordEl.value, opts);
       resultEl.className = result.ok ? 'ok' : 'bad';
       const lines = [];

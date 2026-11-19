@@ -673,35 +673,83 @@ def verify_v10(rec: dict, keyset: dict | None = None, pub_pem: str | None = None
                    errors, warnings, info, body.get("example_data") is True)
 
 
+def _label(errors: list[str], label: str) -> list[str]:
+    """Prefix the pointer part of each error with <label>#, e.g. DUPLICATE_MEMBER:keyset#/keys/0/status."""
+    out = []
+    for e in errors:
+        code, _, ptr = e.partition(":")
+        out.append(f"{code}:{label}#{ptr}")
+    return out
+
+
 def verify_record(rec, keyset: dict | None = None, keyset_bytes: bytes | None = None,
                   keyset_sha256: str | None = None, pub_pem: str | None = None,
-                  binding_inputs: dict | None = None, linked: list | None = None,
+                  binding_inputs=None, linked=None,
                   allow_legacy_v02: bool = False) -> dict:
-    """Verify one record, given as JSON text (preferred) or a parsed object.
+    """Verify one record.
+
+    Pass the record, keyset (keyset_bytes), binding inputs and linked records as raw
+    JSON text (str or bytes): only text can be checked for duplicate members
+    (DUPLICATE_MEMBER) and number spelling (BAD_NUMBER). An already parsed object is
+    still verified, but those checks cannot run on it, so the result carries the
+    warning PARSED_INPUT:<record|keyset|binding_inputs|linked[i]>.
+    linked may be a list of texts/objects, or one text holding an array or an object.
 
     Never raises for bad input; returns status VALID or INVALID."""
+    notes: list[str] = []
+
+    def fin(r: dict) -> dict:
+        r["warnings"] = list(r["warnings"]) + notes
+        return r
+
     if isinstance(rec, (str, bytes)):
         rec, perr = parse_json_text(rec)
         if perr:
-            return _invalid(rec, perr)
+            return fin(_invalid(rec, perr))
+    else:
+        notes.append("PARSED_INPUT:record")
     if keyset_bytes is not None:
         if keyset_sha256 is not None and sha256_hex(keyset_bytes) != keyset_sha256.lower():
-            return _invalid(rec, ["KEYSET_SHA256_MISMATCH"])
+            return fin(_invalid(rec, ["KEYSET_SHA256_MISMATCH"]))
         keyset, kperr = parse_json_text(keyset_bytes)
         if kperr:
-            return _invalid(rec, [e.split(":", 1)[0] + ":keyset#" + (e.split(":", 1)[1] if ":" in e else "") for e in kperr])
+            return fin(_invalid(rec, _label(kperr, "keyset")))
     elif keyset_sha256 is not None:
         raise ValueError("keyset_sha256 needs keyset_bytes (the anchor is over the exact file bytes)")
+    elif keyset is not None:
+        notes.append("PARSED_INPUT:keyset")
+    aux_errors: list[str] = []
+    if isinstance(binding_inputs, (str, bytes)):
+        binding_inputs, berr = parse_json_text(binding_inputs)
+        aux_errors += _label(berr, "binding_inputs")
+    elif binding_inputs is not None:
+        notes.append("PARSED_INPUT:binding_inputs")
+    if isinstance(linked, (str, bytes)):
+        obj, lerr = parse_json_text(linked)
+        aux_errors += _label(lerr, "linked")
+        linked = obj if isinstance(obj, list) else [obj]
+    elif linked is not None:
+        items = []
+        for i, item in enumerate(linked):
+            if isinstance(item, (str, bytes)):
+                item, lerr = parse_json_text(item)
+                aux_errors += _label(lerr, f"linked[{i}]")
+            else:
+                notes.append(f"PARSED_INPUT:linked[{i}]")
+            items.append(item)
+        linked = items
+    if aux_errors:
+        return fin(_invalid(rec, aux_errors))
     if not isinstance(rec, dict) or not isinstance(rec.get("signature"), dict):
-        return _invalid(rec, ["BAD_SIGNATURE_OBJECT"])
+        return fin(_invalid(rec, ["BAD_SIGNATURE_OBJECT"]))
     v = rec.get("schema_version")
     if v == SCHEMA_VERSION:
-        return verify_v10(rec, keyset=keyset, pub_pem=pub_pem, binding_inputs=binding_inputs, linked=linked)
+        return fin(verify_v10(rec, keyset=keyset, pub_pem=pub_pem, binding_inputs=binding_inputs, linked=linked))
     if v == LEGACY_V02:
         if not allow_legacy_v02:
-            return _invalid(rec, ["LEGACY_V02_NOT_ENABLED"])
-        return verify_legacy_v02(rec, keyset=keyset, pub_pem=pub_pem)
-    return _invalid(rec, ["UNSUPPORTED_SCHEMA_VERSION"])
+            return fin(_invalid(rec, ["LEGACY_V02_NOT_ENABLED"]))
+        return fin(verify_legacy_v02(rec, keyset=keyset, pub_pem=pub_pem))
+    return fin(_invalid(rec, ["UNSUPPORTED_SCHEMA_VERSION"]))
 
 
 def main() -> None:
@@ -727,10 +775,11 @@ def main() -> None:
     if a.keyset or (not a.pubkey and isinstance(rec, dict) and rec.get("schema_version") == SCHEMA_VERSION):
         kw["keyset_bytes"] = Path(a.keyset or HERE / "demo-keyset.json").read_bytes()
         kw["keyset_sha256"] = a.keyset_sha256
+    # all inputs go to verify_record as raw bytes, so the strict text checks apply to each file
     if a.binding_inputs:
-        kw["binding_inputs"] = json.loads(Path(a.binding_inputs).read_text(encoding="utf-8"))
+        kw["binding_inputs"] = Path(a.binding_inputs).read_bytes()
     if a.linked:
-        kw["linked"] = [json.loads(Path(p).read_text(encoding="utf-8")) for p in a.linked]
+        kw["linked"] = [Path(p).read_bytes() for p in a.linked]
     res = verify_record(text, allow_legacy_v02=a.allow_legacy_v02, **kw)
     if a.json:
         print(json.dumps(res, indent=2))

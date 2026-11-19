@@ -16,8 +16,8 @@ const cases = exp.cases.map(c => ({
   c,
   record: text(tv + c.record),
   keysetText: c.keyset ? text(tv + c.keyset) : null,
-  binding: c.binding_inputs ? JSON.parse(text(tv + c.binding_inputs)) : null,
-  linked: c.linked ? c.linked.map(p => JSON.parse(text(tv + p))) : null,
+  binding: c.binding_inputs ? text(tv + c.binding_inputs) : null,
+  linked: c.linked ? c.linked.map(p => text(tv + p)) : null,
 }));
 const data = JSON.stringify({ cases, anchor: exp.keyset_anchor_sha256, noncanon: text(tv + 'negative/sig-noncanonical-base64.json') })
   .replace(/</g, '\\u003c');
@@ -58,6 +58,9 @@ const harness = `<script>
     await ui('v1.0 wrong-key button', () => { $('load-v10-wrong-key').click(); }, 'INVALID');
     await ui('v1.0 expired-key button', () => { $('load-v10-expired-key').click(); }, 'INVALID');
     await ui('pasted non-canonical signature', () => { $('load-v10-valid').click(); $('record').value = D.noncanon; }, 'INVALID');
+    await ui('duplicate member in the binding field', () => { $('load-v10-valid').click();
+      $('binding').value = $('binding').value.replace('"amount": "4500000"', '"amount": "1", "amount": "4500000"'); }, 'INVALID');
+    out.ui.push({ name: 'binding duplicate reported', ok: (($('result-errors') || {}).textContent || '').includes('DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount'), got: $('result').textContent });
     await ui('v0.2 valid button', () => { $('load-valid').click(); $('binding').value = ''; $('linked').value = ''; }, 'VALID');
     await ui('v0.2 tampered button', () => { $('load-tampered').click(); }, 'INVALID');
     await ui('v0.2 valid without the legacy box', () => { $('load-valid').click(); $('allow-legacy').checked = false; }, 'INVALID');
