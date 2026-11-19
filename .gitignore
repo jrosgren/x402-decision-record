@@ -1,0 +1,8 @@
+# Never commit private keys. Only the demo PUBLIC key is published.
+*.pem
+!verifier/demo-pub.pem
+*.key
+__pycache__/
+node_modules/
+canon.json
+sig.bin

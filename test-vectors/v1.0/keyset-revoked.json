@@ -1,0 +1,20 @@
+{
+  "_note": "EXAMPLE keyset for tests: the demo key revoked for key_compromise.",
+  "keyset_version": "1.0",
+  "example_data": true,
+  "issuer": "https://trypolkulab.com",
+  "published_at": "2026-11-20T00:00:00Z",
+  "keys": [
+    {
+      "key_id": "polkulab-demo-2026-11",
+      "alg": "Ed25519",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAc2KxBQXTPJ7lQqzL+BDfP2oTvMocJtn1Nm7XsSY/fo0=\n-----END PUBLIC KEY-----\n",
+      "valid_from": "2026-11-01T00:00:00Z",
+      "valid_until": "2027-01-01T00:00:00Z",
+      "status": "revoked",
+      "purpose": "demo signing of example records only",
+      "revoked_at": "2026-11-20T00:00:00Z",
+      "revocation_reason": "key_compromise"
+    }
+  ]
+}

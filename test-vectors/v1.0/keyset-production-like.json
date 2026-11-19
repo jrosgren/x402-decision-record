@@ -1,0 +1,17 @@
+{
+  "_note": "EXAMPLE keyset for tests: production-like, WITHOUT the demo key. Test public key only.",
+  "keyset_version": "1.0",
+  "issuer": "https://trypolkulab.com",
+  "published_at": "2026-11-19T00:00:00Z",
+  "keys": [
+    {
+      "key_id": "polkulab-prod-2026-12",
+      "alg": "Ed25519",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAHKlTbd6otpHmBAbp/b2CdlyjfLdUAM7qX9GfhJ2rzcg=\n-----END PUBLIC KEY-----\n",
+      "valid_from": "2026-12-01T00:00:00Z",
+      "valid_until": "2027-12-01T00:00:00Z",
+      "status": "active",
+      "purpose": "test stand-in for a production key"
+    }
+  ]
+}

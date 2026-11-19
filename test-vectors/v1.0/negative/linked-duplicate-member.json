@@ -1,0 +1,10 @@
+{
+  "_note": "EXAMPLE DATA ONLY. Stand-in for a seller attestation.",
+  "record_type": "example-seller-attestation",
+  "issuer": "https://attest.example-registry.test",
+  "subject": "https://api.example-seller.test",
+  "scope": "anything",
+  "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+  "issued_at": "2026-11-10T00:00:00Z",
+  "expires_at": "2026-12-10T00:00:00Z"
+}

@@ -1,0 +1,781 @@
+{
+  "_note": "Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). Records and keysets are passed to the verifiers as file text.",
+  "keyset_anchor_sha256": "958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745",
+  "cases": [
+    {
+      "name": "valid, full (binding inputs and linked records)",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "binding-inputs.json",
+      "linked": [
+        "linked/content-time-record.json",
+        "linked/seller-attestation.json"
+      ],
+      "info_includes": [
+        "BINDING_RECOMPUTED_OK",
+        "LINK_RECOMPUTED_OK:content_time_record",
+        "LINK_RECOMPUTED_OK:seller_attestation",
+        "CUSTOM_CHECK_ID:x-polkulab.sanctions_list"
+      ],
+      "sha256": "b391e0ba7d69f81f961687c7ba6bbe2540d5cc67e6371878df01c0e7f9592af3",
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "valid, keyset matches the release anchor",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "keyset_sha256": "958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745",
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "keyset does not match the release anchor",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "keyset_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "status": "INVALID",
+      "errors": [
+        "KEYSET_SHA256_MISMATCH"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "tampered after signing (score 62 -> 30)",
+      "record": "tampered.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "signed with a different key under the demo key_id",
+      "record": "wrong-key.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "issued after the key's valid_until",
+      "record": "expired-key.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "KEY_NOT_VALID_AT_ISSUANCE"
+      ],
+      "warnings": [
+        "LINK_EXPIRED_AT_ISSUANCE:seller_attestation"
+      ]
+    },
+    {
+      "name": "key revoked for key_compromise",
+      "record": "valid.json",
+      "keyset": "keyset-revoked.json",
+      "status": "INVALID",
+      "errors": [
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "key superseded after issuance: still valid",
+      "record": "valid.json",
+      "keyset": "keyset-superseded-later.json",
+      "status": "VALID",
+      "errors": [],
+      "warnings": [
+        "KEY_SUPERSEDED_AFTER_ISSUANCE"
+      ]
+    },
+    {
+      "name": "key superseded before issuance",
+      "record": "valid.json",
+      "keyset": "keyset-superseded-earlier.json",
+      "status": "INVALID",
+      "errors": [
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M3 duplicate key_id in keyset",
+      "record": "valid.json",
+      "keyset": "keyset-duplicate-key-id.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_KEY_ID:polkulab-demo-2026-11"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M2 keyset_version not 1.0",
+      "record": "valid.json",
+      "keyset": "keyset-version-0.3.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_KEYSET_VERSION:keyset#/keyset_version"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M4 keyset timestamp without Z",
+      "record": "valid.json",
+      "keyset": "keyset-bad-timestamp.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_TIMESTAMP:keyset#/keys/0/valid_from"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M1 extra member in signature",
+      "record": "negative/sig-extra-member.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE_OBJECT:/signature"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M1 canonicalization member in signature",
+      "record": "negative/sig-canonicalization-member.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE_OBJECT:/signature"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M1 sha256 member in signature",
+      "record": "negative/sig-sha256-member.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE_OBJECT:/signature"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M1 non-canonical base64 (unused bits set)",
+      "record": "negative/sig-noncanonical-base64.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "NONCANONICAL_SIGNATURE:/signature/sig_base64"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M1 malleated signature S+L",
+      "record": "negative/sig-s-plus-l.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M2 schema_version 0.3-draft",
+      "record": "negative/version-0.3-draft.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_SCHEMA_VERSION"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M2 schema_version 1.0.0 (no prefix match)",
+      "record": "negative/version-1.0.0.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_SCHEMA_VERSION"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M4 timestamp with microseconds",
+      "record": "negative/ts-microseconds.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_TIMESTAMP:/timeline/authorization_presented_at"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M4 timestamp without zone",
+      "record": "negative/ts-no-zone.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_TIMESTAMP:/timeline/decision_issued_at"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M4 timestamp with +02:00 offset",
+      "record": "negative/ts-offset.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_TIMESTAMP:/timeline/requirements_received_at"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M4 timestamp that is not a calendar date",
+      "record": "negative/ts-not-a-date.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_TIMESTAMP:/checks/0/ran_at"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M5 record claims x402 v1",
+      "record": "negative/x402-v1-record.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "SCHEMA_VIOLATION:/payment/x402_version"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M5 x402 v1 requirements as binding input",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-x402-v1.json",
+      "status": "INVALID",
+      "errors": [
+        "BINDING_FIELD_MISMATCH:network",
+        "BINDING_HASH_MISMATCH:jcs(payment_requirements)",
+        "UNSUPPORTED_X402_V1_REQUIREMENTS"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M5 amount missing from requirements",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-no-amount.json",
+      "status": "INVALID",
+      "errors": [
+        "BINDING_FIELD_MISSING:amount",
+        "BINDING_HASH_MISMATCH:jcs(payment_requirements)"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M5 amount differs",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-wrong-amount.json",
+      "status": "INVALID",
+      "errors": [
+        "BINDING_FIELD_MISMATCH:amount_atomic",
+        "BINDING_HASH_MISMATCH:jcs(payment_requirements)"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "payTo differs",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-wrong-payto.json",
+      "status": "INVALID",
+      "errors": [
+        "BINDING_FIELD_MISMATCH:payee",
+        "BINDING_HASH_MISMATCH:jcs(payment_requirements)"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "resource url differs",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-wrong-resource.json",
+      "status": "INVALID",
+      "errors": [
+        "BINDING_FIELD_MISMATCH:resource"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "wrong nonce",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-wrong-nonce.json",
+      "status": "INVALID",
+      "errors": [
+        "BINDING_HASH_MISMATCH:eip3009-nonce-bytes32"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "B3 nonce not 32 bytes",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-bad-nonce.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_NONCE"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M6 link ceiling 'bogus'",
+      "record": "negative/link-ceiling-bogus.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "SCHEMA_VIOLATION:/links/0/evidence_ceiling"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M6 link input md5(x)",
+      "record": "negative/link-input-md5.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "SCHEMA_VIOLATION:/links/0/record_sha256/input"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M6 seller attestation without expires_at",
+      "record": "negative/seller-attestation-no-expiry.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "SCHEMA_VIOLATION:/links/1/expires_at"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M6 withheld evidence with unknown input id",
+      "record": "negative/withheld-evidence-unknown-input.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "SCHEMA_VIOLATION:/checks/2/evidence_sha256/input"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "M6 score 101",
+      "record": "negative/score-101.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "SCHEMA_VIOLATION:/decision/score"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "B1 float in record",
+      "record": "negative/number-float.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_NUMBER:/decision/score"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "B1 integer above 2^53-1",
+      "record": "negative/number-too-large.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_NUMBER:/checks/3/evidence/first_tx_block"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "non-EVM network",
+      "record": "negative/non-evm-network.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_NETWORK:/payment/network"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "unknown key_id",
+      "record": "negative/unknown-key-id.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNKNOWN_KEY"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "signing_key.key_id differs from signature.key_id",
+      "record": "negative/key-id-mismatch.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "KEY_ID_MISMATCH"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "B2 requirements received after authorization presented",
+      "record": "negative/timeline-out-of-order.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "TIMELINE_OUT_OF_ORDER"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "check ran before authorization presented",
+      "record": "negative/check-outside-window.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "CHECK_OUTSIDE_DECISION_WINDOW:endpoint.health"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "decision issued after valid_before",
+      "record": "negative/decision-after-expiry.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "DECISION_AFTER_AUTHORIZATION_EXPIRY"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "B2 valid_after after valid_before",
+      "record": "negative/authorization-window-inverted.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "AUTHORIZATION_WINDOW_INVALID"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "inline evidence does not match its hash",
+      "record": "negative/evidence-hash-mismatch.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "EVIDENCE_HASH_MISMATCH:endpoint.health"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "K1 field_evidence_ceilings pointer does not resolve",
+      "record": "negative/field-pointer-unresolved.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNRESOLVED_POINTER:/payment/does_not_exist"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "unknown check id is info only",
+      "record": "unknown-check-id.json",
+      "keyset": "keyset-demo.json",
+      "info_includes": [
+        "UNKNOWN_CHECK_ID:some.future_check"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "withheld evidence is info only",
+      "record": "withheld-evidence.json",
+      "keyset": "keyset-demo.json",
+      "info_includes": [
+        "EVIDENCE_WITHHELD:payto.change"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "linked record altered: warning only",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "linked": [
+        "negative/linked-content-time-record-altered.json"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": [
+        "LINK_NOT_SUPPLIED_OR_MISMATCH:content_time_record",
+        "LINK_NOT_SUPPLIED_OR_MISMATCH:seller_attestation"
+      ]
+    },
+    {
+      "name": "S1 duplicate member in record",
+      "record": "negative/duplicate-member.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:/decision/score"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "S1 duplicate member in keyset",
+      "record": "valid.json",
+      "keyset": "negative/keyset-duplicate-member.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:keyset#/keys/0/status"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "S3 network with leading zero",
+      "record": "negative/network-leading-zero.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_NETWORK:/payment/network"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "S3 network eip155:0",
+      "record": "negative/network-zero.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "UNSUPPORTED_NETWORK:/payment/network"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "binding inputs with a duplicate member",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-duplicate-member.json",
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "binding inputs with a float",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "negative/binding-inputs-float.json",
+      "status": "INVALID",
+      "errors": [
+        "BAD_NUMBER:binding_inputs#/payment_requirements/maxTimeoutSeconds"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "linked record with a duplicate member",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "linked": [
+        "linked/content-time-record.json",
+        "negative/linked-duplicate-member.json"
+      ],
+      "status": "INVALID",
+      "errors": [
+        "DUPLICATE_MEMBER:linked[1]#/scope"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "linked record that is not JSON",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "linked": [
+        "negative/linked-not-json.json"
+      ],
+      "status": "INVALID",
+      "errors": [
+        "BAD_JSON:linked[0]#"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2 not enabled",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-demo.json",
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_NOT_ENABLED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2 valid",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
+      "sha256": "f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0",
+      "status": "VALID",
+      "errors": [],
+      "warnings": [
+        "LEGACY_V02_SIGNATURE_ONLY"
+      ]
+    },
+    {
+      "name": "legacy v0.2 tampered",
+      "record": "../../verifier/record-tampered.json",
+      "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE"
+      ],
+      "warnings": [
+        "EMBEDDED_SHA256_MISMATCH"
+      ]
+    },
+    {
+      "name": "legacy v0.2, no keyset and no key: demo key assumed",
+      "record": "../../verifier/record-valid.json",
+      "keyset": null,
+      "allow_legacy_v02": true,
+      "status": "VALID",
+      "errors": [],
+      "warnings": [
+        "DEMO_KEY_ASSUMED",
+        "LEGACY_V02_SIGNATURE_ONLY"
+      ]
+    },
+    {
+      "name": "Ella 1: v1.0 fields labelled 0.2-draft, key revoked (key_compromise)",
+      "record": "negative/legacy-v1-fields-relabelled.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_WITH_V1_FIELDS:/checks",
+        "LEGACY_V02_WITH_V1_FIELDS:/decision",
+        "LEGACY_V02_WITH_V1_FIELDS:/field_evidence_ceilings",
+        "LEGACY_V02_WITH_V1_FIELDS:/issuer",
+        "LEGACY_V02_WITH_V1_FIELDS:/links",
+        "LEGACY_V02_WITH_V1_FIELDS:/not_covered",
+        "LEGACY_V02_WITH_V1_FIELDS:/payment",
+        "LEGACY_V02_WITH_V1_FIELDS:/record_type",
+        "LEGACY_V02_WITH_V1_FIELDS:/signing_key",
+        "LEGACY_V02_WITH_V1_FIELDS:/timeline",
+        "SCHEMA_VIOLATION:/checkedAt"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Ella 2: v1.0 fields labelled 0.2-draft, issued 2030",
+      "record": "negative/legacy-v1-fields-relabelled-2030.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_WITH_V1_FIELDS:/checks",
+        "LEGACY_V02_WITH_V1_FIELDS:/decision",
+        "LEGACY_V02_WITH_V1_FIELDS:/field_evidence_ceilings",
+        "LEGACY_V02_WITH_V1_FIELDS:/issuer",
+        "LEGACY_V02_WITH_V1_FIELDS:/links",
+        "LEGACY_V02_WITH_V1_FIELDS:/not_covered",
+        "LEGACY_V02_WITH_V1_FIELDS:/payment",
+        "LEGACY_V02_WITH_V1_FIELDS:/record_type",
+        "LEGACY_V02_WITH_V1_FIELDS:/signing_key",
+        "LEGACY_V02_WITH_V1_FIELDS:/timeline",
+        "SCHEMA_VIOLATION:/checkedAt"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Ella 3: demo-signed v0.2 against a production-like keyset",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-production-like.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "UNKNOWN_KEY"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, key revoked for key_compromise",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, key superseded: always revoked on the legacy path",
+      "record": "../../verifier/record-valid.json",
+      "keyset": "keyset-superseded-later.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, checkedAt after the key's valid_until",
+      "record": "negative/legacy-v02-checked-2030.json",
+      "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_NOT_VALID_AT_ISSUANCE"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2, checkedAt 2030 and key revoked",
+      "record": "negative/legacy-v02-checked-2030.json",
+      "keyset": "keyset-revoked.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "KEY_NOT_VALID_AT_ISSUANCE",
+        "KEY_REVOKED"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "legacy v0.2 with one v1.0 member",
+      "record": "negative/legacy-v02-with-payment.json",
+      "keyset": "keyset-demo.json",
+      "allow_legacy_v02": true,
+      "status": "INVALID",
+      "errors": [
+        "LEGACY_V02_WITH_V1_FIELDS:/payment"
+      ],
+      "warnings": []
+    }
+  ]
+}

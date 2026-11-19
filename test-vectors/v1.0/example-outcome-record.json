@@ -1,0 +1,19 @@
+{
+  "_note": "EXAMPLE DATA ONLY. Unsigned stand-in for a later outcome record that links to valid.json.",
+  "record_type": "example-outcome-record",
+  "issuer": "https://trypolkulab.com",
+  "status": "settled",
+  "tx_hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+  "links": [
+    {
+      "rel": "decision_record",
+      "issuer": "https://trypolkulab.com",
+      "record_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(record)",
+        "hex": "c84f6663d26c90b0f2d2401f1ae1a6cc1834fee537e539261e5dfa45fd1e52e0"
+      },
+      "evidence_ceiling": "issuer_assertion"
+    }
+  ]
+}

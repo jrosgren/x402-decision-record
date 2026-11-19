@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; base-uri 'none';">
-  <title>AgentTrust decision record verifier</title>
+  <title>x402 decision record verifier (v1.0 + legacy v0.2)</title>
   <style>
     :root {
       --ink: #1b1b18;
@@ -58,7 +58,7 @@
       font-weight: 600;
       margin: 1rem 0 0.35rem;
     }
-    textarea {
+    textarea, input[type=text] {
       width: 100%;
       font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       border: 1px solid var(--line);
@@ -68,8 +68,11 @@
       color: var(--ink);
       resize: vertical;
     }
+    label.inline { display: inline; font-weight: 400; margin: 0; }
     #record { min-height: 22rem; }
     #pubkey { min-height: 6.5rem; }
+    #keyset { min-height: 8rem; }
+    #binding { min-height: 6rem; }
     .row {
       display: flex;
       flex-wrap: wrap;
@@ -144,7 +147,8 @@
 </head>
 <body>
   <main>
-    <h1>AgentTrust decision record verifier</h1>
+    <h1>x402 decision record verifier</h1>
+    <p class="byline">Supports schema v1.0 (release v1.0.0, 19.11.2026). Legacy v0.2-draft only when you tick the box below.</p>
     <p class="byline">Made by Aron, Polkulab (Payvetted)</p>
 
     <div class="notices">
@@ -153,77 +157,39 @@
     </div>
 
     <label for="record">Signed record (JSON)</label>
-    <textarea id="record" spellcheck="false" aria-describedby="record-hint">{
-  "record_id": "at_dr_example_000001",
-  "schema_version": "0.2-draft",
-  "example_data": true,
-  "input": {
-    "url": "https://api.example-seller.test/v1/report",
-    "payTo": "0x0000000000000000000000000000000000000002",
-    "network": "eip155:8453"
-  },
-  "verdict": "warn",
-  "score": 62,
-  "level": "medium",
-  "reasons": [
-    "Payee wallet first seen less than 7 days ago",
-    "Price is above the listed price for this resource"
-  ],
-  "reason_codes": [
-    "PAYEE_NEW",
-    "PRICE_ABOVE_LISTING"
-  ],
-  "evidence": {
-    "liveness": {
-      "result": "pass",
-      "detail": "Resource answered with HTTP 402 and valid payment requirements"
-    },
-    "price_vs_listing": {
-      "result": "warn",
-      "detail": "Requested 4.50 USDC; listed price 3.00 USDC"
-    },
-    "payto_change": {
-      "result": "pass",
-      "detail": "payTo unchanged since first seen"
-    },
-    "schema": {
-      "result": "pass",
-      "detail": "x402 payment requirements match the expected schema"
-    },
-    "payee_wallet_risk": {
-      "result": "warn",
-      "detail": "Wallet age under 7 days; no OFAC SDN match",
-      "ofac_match": false
-    }
-  },
-  "checkedAt": "2026-11-02T09:00:00Z",
-  "payer_agent_id": "agent:example-buyer-01",
-  "payer_wallet": "0x0000000000000000000000000000000000000001",
-  "asset": "USDC",
-  "amount": "4.50",
-  "policy_id": "policy:default-v1",
-  "outcome": {
-    "status": "pending",
-    "linked_events": []
-  },
-  "signature": {
-    "alg": "Ed25519",
-    "key_id": "polkulab-demo-2026-11",
-    "canonicalization": "RFC 8785 (JCS) of the record without the signature field",
-    "sha256": "f3a1e3138054d02beac297c4024b82510aceb5507ef4af9b803670f1738435f0",
-    "sig_base64": "o4xBo76P7rVQROKSzdkIEH8Py41gWSbEbTvSmPc0mkB7eBt1rYLLY65Lugp8Fhe18U8araC6Fj4wIJmyc7Y0Aw=="
-  }
-}</textarea>
+    <textarea id="record" spellcheck="false" aria-describedby="record-hint"></textarea>
     <div class="row">
-      <button type="button" class="secondary" id="load-valid">Load valid example</button>
-      <button type="button" class="secondary" id="load-tampered">Load tampered example (score 62→30)</button>
+      <button type="button" class="secondary" id="load-valid">Legacy v0.2 valid</button>
+      <button type="button" class="secondary" id="load-tampered">Legacy v0.2 tampered (score 62→30)</button>
+    </div>
+    <div class="row">
+      <button type="button" class="secondary" id="load-v10-valid">v1.0 valid</button>
+      <button type="button" class="secondary" id="load-v10-tampered">v1.0 tampered (score 62→30)</button>
+      <button type="button" class="secondary" id="load-v10-wrong-key">v1.0 wrong key</button>
+      <button type="button" class="secondary" id="load-v10-expired-key">v1.0 expired key</button>
     </div>
 
-    <label for="pubkey">Public key (PEM)</label>
+    <div class="row">
+      <label class="inline"><input type="checkbox" id="allow-legacy"> Also accept legacy 0.2-draft records (signature only; no payment binding, timeline or evidence checks)</label>
+    </div>
+
+    <label for="pubkey">Public key (PEM) — used only when the keyset field is empty</label>
     <textarea id="pubkey" spellcheck="false">-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAc2KxBQXTPJ7lQqzL+BDfP2oTvMocJtn1Nm7XsSY/fo0=
 -----END PUBLIC KEY-----
 </textarea>
+
+    <label for="keyset">Keyset (JSON, v1.0) — demo keyset prefilled; paste the issuer's published keyset file exactly as downloaded to check validity windows, revocation and the anchor</label>
+    <textarea id="keyset" spellcheck="false"></textarea>
+
+    <label for="anchor">Keyset SHA-256 anchor (optional) — the hex value from the release notes; the keyset text above must match it byte for byte</label>
+    <input id="anchor" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. the keyset.json SHA-256 line of release v1.0.0">
+
+    <label for="binding">Binding inputs (JSON, optional, v1.0) — raw nonce, x402 v2 payment requirements, resource and request, to recompute the payment binding</label>
+    <textarea id="binding" spellcheck="false" placeholder="Optional. Load an example to fill this."></textarea>
+
+    <label for="linked">Linked records (JSON array, optional) — records the links point to, to recompute their hashes</label>
+    <textarea id="linked" spellcheck="false" placeholder="Optional. Load an example to fill this."></textarea>
 
     <div class="row">
       <button type="button" id="verify">Verify signature</button>
@@ -244,6 +210,17 @@ MCowBQYDK2VwAyEAc2KxBQXTPJ7lQqzL+BDfP2oTvMocJtn1Nm7XsSY/fo0=
         <code>polkulab-demo-2026-11</code>. A third party can run the same check
         with the Python script or OpenSSL commands in the README, with no access
         to Polkulab systems.
+      </p>
+      <p>
+        For <strong>v1.0</strong> records the page first validates the record against the v1.0 JSON
+        Schema (embedded in the page; same rules and error codes as <code>verify.py</code>), including the
+        signature object (exactly <code>alg</code>, <code>key_id</code>, <code>sig_base64</code>), canonical
+        base64, timestamps (seconds or exactly milliseconds, with <code>Z</code>) and integers within
+        &plusmn;(2<sup>53</sup>&minus;1). It rejects signatures with S &ge; L on every path, including the
+        tweetnacl fallback. It then checks the keyset (version, unique key ids, optional SHA-256 anchor,
+        validity window and revocation), the signature, every inline evidence hash, the timeline, and,
+        if you supply them, the payment binding against x402 v2 payment requirements and the linked
+        record hashes. See SPEC.md §11 for the exact steps.
       </p>
     </section>
   </main>
@@ -375,6 +352,937 @@ const AgentTrustVerifier = (function () {
     "sig_base64": "o4xBo76P7rVQROKSzdkIEH8Py41gWSbEbTvSmPc0mkB7eBt1rYLLY65Lugp8Fhe18U8araC6Fj4wIJmyc7Y0Aw=="
   }
 };
+  /* BEGIN GENERATED (tools/make_vectors.py) */
+  const RECORD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v1.0.schema.json", "title": "x402 pre-payment decision record, v1.0", "description": "Signed record of a check made before an x402 payment. See SPEC.md. Verifiers MUST validate a record against this schema before any other step (SPEC \u00a711 step 0). The keyword x-error-code is an annotation naming the error code a verifier reports when that subschema fails; validators that do not know it ignore it.", "type": "object", "additionalProperties": false, "required": ["schema_version", "record_type", "record_id", "issuer", "signing_key", "payment", "timeline", "checks", "decision", "field_evidence_ceilings", "links", "not_covered", "signature"], "properties": {"schema_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_SCHEMA_VERSION"}, "record_type": {"const": "x402-pre-payment-decision"}, "record_id": {"type": "string", "minLength": 1, "maxLength": 128}, "example_data": {"type": "boolean", "description": "true for illustrations and test vectors. Production records omit it or set false."}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "signing_key": {"type": "object", "additionalProperties": false, "required": ["key_id", "keyset_uri"], "properties": {"key_id": {"type": "string", "minLength": 1}, "keyset_uri": {"type": "string", "minLength": 1, "format": "uri", "description": "Primary keyset location; v1.0.0: https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"}}}, "payment": {"type": "object", "additionalProperties": false, "required": ["x402_version", "scheme", "network", "asset", "amount_atomic", "payer", "payee", "resource", "authorization", "payment_requirements_sha256", "request_sha256", "tx_hash"], "properties": {"x402_version": {"const": 2, "description": "v1.0 binds to x402 protocol v2 PaymentRequirements. x402 v1 requirements must be mapped to v2 first (SPEC \u00a74)."}, "scheme": {"type": "string", "minLength": 1}, "network": {"type": "string", "pattern": "^eip155:[1-9][0-9]*$", "x-error-code": "UNSUPPORTED_NETWORK", "description": "CAIP-2 chain id. v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."}, "asset": {"type": "string", "minLength": 1}, "asset_symbol": {"type": "string"}, "asset_decimals": {"type": "integer", "minimum": 0, "maximum": 255}, "amount_atomic": {"$ref": "#/$defs/uintString"}, "payer": {"type": "string", "minLength": 1}, "payee": {"type": "string", "minLength": 1}, "resource": {"type": "string", "minLength": 1, "format": "uri"}, "authorization": {"type": "object", "additionalProperties": false, "required": ["nonce_sha256", "valid_before"], "properties": {"nonce_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "eip3009-nonce-bytes32"}}}, "valid_after": {"$ref": "#/$defs/timestamp"}, "valid_before": {"$ref": "#/$defs/timestamp"}}}, "payment_requirements_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(payment_requirements)"}}}, "request_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(resource_request)"}}}, "tx_hash": {"type": ["string", "null"], "description": "null when the record is signed before settlement (the normal case)."}}}, "timeline": {"type": "object", "additionalProperties": false, "required": ["requirements_received_at", "authorization_presented_at", "decision_issued_at"], "properties": {"requirements_received_at": {"$ref": "#/$defs/timestamp"}, "authorization_presented_at": {"$ref": "#/$defs/timestamp"}, "decision_issued_at": {"$ref": "#/$defs/timestamp"}}}, "checks": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "result", "ran_at", "evidence_ceiling", "evidence_sha256"], "properties": {"id": {"type": "string", "pattern": "^(x-[a-z0-9-]+\\.)?[a-z0-9_]+(\\.[a-z0-9_]+)*$", "description": "Registered ids: endpoint.health, terms.price_vs_listing, payto.change, payee.wallet_risk. Custom ids use the prefix x-<issuer>. Verifiers MUST ignore unknown ids rather than reject the record."}, "result": {"enum": ["pass", "warn", "fail", "error", "skipped"]}, "ran_at": {"$ref": "#/$defs/timestamp"}, "evidence_ceiling": {"$ref": "#/$defs/ceiling"}, "evidence_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(evidence)"}}}, "evidence": {"type": "object", "description": "Optional inline evidence. If present, its JCS hash must equal evidence_sha256.hex."}}}}, "decision": {"type": "object", "additionalProperties": false, "required": ["verdict", "score", "reason_codes", "policy_id"], "properties": {"verdict": {"enum": ["allow", "warn", "deny"]}, "score": {"type": "integer", "minimum": 0, "maximum": 100}, "level": {"enum": ["low", "medium", "high"]}, "reason_codes": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9_]+$"}}, "policy_id": {"type": "string", "minLength": 1}, "payer_agent_id": {"type": "string"}}}, "field_evidence_ceilings": {"type": "object", "propertyNames": {"pattern": "^(/[^/]+)+$"}, "additionalProperties": {"$ref": "#/$defs/ceiling"}}, "links": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["rel", "issuer", "record_sha256", "evidence_ceiling"], "properties": {"rel": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "scope": {"type": "string"}, "expires_at": {"$ref": "#/$defs/timestamp"}, "uri": {"type": "string", "format": "uri"}, "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(record)", "jcs(linked-record)", "raw(linked-record)"]}}}, "evidence_ceiling": {"$ref": "#/$defs/ceiling"}}, "if": {"properties": {"rel": {"const": "seller_attestation"}}, "required": ["rel"]}, "then": {"required": ["scope", "expires_at"]}}}, "not_covered": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["code", "text"], "properties": {"code": {"type": "string", "pattern": "^[A-Z0-9_]+$"}, "text": {"type": "string", "minLength": 1}}}}, "signature": {"type": "object", "x-error-code": "BAD_SIGNATURE_OBJECT", "description": "Exactly these three members. No canonicalization or sha256 member in v1.0 (SPEC \u00a73): unsigned extra members would let anyone change jcs(record).", "additionalProperties": false, "required": ["alg", "key_id", "sig_base64"], "properties": {"alg": {"const": "Ed25519"}, "key_id": {"type": "string", "minLength": 1}, "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$", "x-error-code": "NONCANONICAL_SIGNATURE", "description": "Canonical standard base64 with padding of the 64-byte signature: the unused low bits of the last data character are zero."}}}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."}, "uintString": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}, "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "ceiling": {"enum": ["recomputable_from_chain", "recomputable_from_client_view", "issuer_assertion"]}, "hash": {"type": "object", "additionalProperties": false, "required": ["alg", "input", "hex"], "properties": {"alg": {"const": "sha-256"}, "input": {"type": "string"}, "hex": {"$ref": "#/$defs/hex64"}}}}};
+  const KEYSET_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/keyset.v1.0.schema.json", "title": "Decision-record signing keyset, v1.0", "description": "See SPEC \u00a79. key_id MUST be unique within a keyset (verifiers reject duplicates with DUPLICATE_KEY_ID; JSON Schema cannot express this). x-error-code is an annotation, see the record schema.", "type": "object", "additionalProperties": false, "required": ["keyset_version", "issuer", "published_at", "keys"], "properties": {"_note": {"type": "string"}, "keyset_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_KEYSET_VERSION"}, "example_data": {"type": "boolean"}, "issuer": {"type": "string", "minLength": 1, "format": "uri"}, "published_at": {"$ref": "#/$defs/timestamp"}, "keyset_signature": {"type": ["object", "null"], "description": "RESERVED for v1.1 (signature by a KMS-held root key). Not used in v1.0: issuers SHOULD omit it and v1.0 verifiers MUST ignore it."}, "keys": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["key_id", "alg", "public_key_pem", "valid_from", "valid_until", "status"], "properties": {"key_id": {"type": "string", "minLength": 1}, "alg": {"const": "Ed25519"}, "public_key_pem": {"type": "string", "pattern": "^-----BEGIN PUBLIC KEY-----"}, "valid_from": {"$ref": "#/$defs/timestamp"}, "valid_until": {"$ref": "#/$defs/timestamp"}, "status": {"enum": ["active", "retired", "revoked"]}, "revoked_at": {"$ref": "#/$defs/timestamp"}, "revocation_reason": {"enum": ["key_compromise", "superseded"]}, "purpose": {"type": "string"}}, "if": {"properties": {"status": {"const": "revoked"}}, "required": ["status"]}, "then": {"required": ["revoked_at", "revocation_reason"]}}}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "Same format as in the record schema."}}};
+  const LEGACY_V02_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v0.2.schema.json", "title": "x402 pre-payment decision record, legacy v0.2-draft (closed)", "description": "LEGACY. Closed schema for 0.2-draft records, used by the reference verifiers only when legacy verification is explicitly enabled (SPEC \u00a711.1). Any v1.0 member makes the record INVALID (LEGACY_V02_WITH_V1_FIELDS), so v1.0 content cannot be relabelled 0.2-draft to skip the v1.0 checks.", "type": "object", "additionalProperties": false, "required": ["record_id", "schema_version", "checkedAt", "signature"], "properties": {"record_id": {"type": "string", "minLength": 1}, "schema_version": {"const": "0.2-draft"}, "example_data": {"type": "boolean"}, "input": {"type": "object"}, "verdict": {"enum": ["allow", "warn", "deny"]}, "score": {"type": "integer", "minimum": 0, "maximum": 100}, "level": {"type": "string"}, "reasons": {"type": "array", "items": {"type": "string"}}, "reason_codes": {"type": "array", "items": {"type": "string"}}, "evidence": {"type": "object"}, "checkedAt": {"$ref": "#/$defs/timestamp", "description": "Issuance time of a v0.2 record; checked against the key's validity window."}, "payer_agent_id": {"type": "string"}, "payer_wallet": {"type": "string"}, "asset": {"type": "string"}, "amount": {"type": "string"}, "policy_id": {"type": "string"}, "outcome": {"type": "object"}, "signature": {"type": "object", "x-error-code": "BAD_SIGNATURE_OBJECT", "additionalProperties": false, "required": ["alg", "key_id", "sig_base64"], "properties": {"alg": {"const": "Ed25519"}, "key_id": {"type": "string", "minLength": 1}, "canonicalization": {"type": "string"}, "sha256": {"type": "string"}, "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$", "x-error-code": "NONCANONICAL_SIGNATURE"}}}, "record_type": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "issuer": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "signing_key": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "payment": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "timeline": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "checks": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "decision": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "field_evidence_ceilings": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "links": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}, "not_covered": {"not": {}, "x-error-code": "LEGACY_V02_WITH_V1_FIELDS", "description": "v1.0 member: not allowed in a 0.2-draft record."}}, "$defs": {"timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."}}};
+  const DEMO_KEYSET = {
+  "_note": "EXAMPLE / DEMO keyset. The demo key signs example records only, never production decisions.",
+  "keyset_version": "1.0",
+  "example_data": true,
+  "issuer": "https://trypolkulab.com",
+  "published_at": "2026-11-19T00:00:00Z",
+  "keys": [
+    {
+      "key_id": "polkulab-demo-2026-11",
+      "alg": "Ed25519",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAc2KxBQXTPJ7lQqzL+BDfP2oTvMocJtn1Nm7XsSY/fo0=\n-----END PUBLIC KEY-----\n",
+      "valid_from": "2026-11-01T00:00:00Z",
+      "valid_until": "2027-01-01T00:00:00Z",
+      "status": "active",
+      "purpose": "demo signing of example records only"
+    }
+  ]
+};
+  const DEMO_V10 = {
+  "valid": {
+    "schema_version": "1.0",
+    "record_type": "x402-pre-payment-decision",
+    "record_id": "at_dr_example_v10_000001",
+    "example_data": true,
+    "issuer": "https://trypolkulab.com",
+    "signing_key": {
+      "key_id": "polkulab-demo-2026-11",
+      "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
+    },
+    "payment": {
+      "x402_version": 2,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x0000000000000000000000000000000000000003",
+      "asset_symbol": "USDC",
+      "asset_decimals": 6,
+      "amount_atomic": "4500000",
+      "payer": "0x0000000000000000000000000000000000000001",
+      "payee": "0x0000000000000000000000000000000000000002",
+      "resource": "https://api.example-seller.test/v1/report",
+      "authorization": {
+        "nonce_sha256": {
+          "alg": "sha-256",
+          "input": "eip3009-nonce-bytes32",
+          "hex": "1e69a726790da06715fa2df707d84f1e100b3471258599c8c2a80a5646d6965a"
+        },
+        "valid_after": "2026-11-19T08:59:00Z",
+        "valid_before": "2026-11-19T09:05:00Z"
+      },
+      "payment_requirements_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(payment_requirements)",
+        "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+      },
+      "request_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(resource_request)",
+        "hex": "4ce73a8537d58f8dc5e5f274b863b6f6b31ea836ece68d17d267a37c03c69421"
+      },
+      "tx_hash": null
+    },
+    "timeline": {
+      "requirements_received_at": "2026-11-19T09:00:00.000Z",
+      "authorization_presented_at": "2026-11-19T09:00:00.150Z",
+      "decision_issued_at": "2026-11-19T09:00:00.910Z"
+    },
+    "checks": [
+      {
+        "id": "endpoint.health",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.210Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
+        },
+        "evidence": {
+          "http_status": 402,
+          "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+        }
+      },
+      {
+        "id": "terms.price_vs_listing",
+        "result": "warn",
+        "ran_at": "2026-11-19T09:00:00.260Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40850443c2ee7cd238af63428db32a28ef150e003dde0582c495649bcbe60643"
+        },
+        "evidence": {
+          "requested_atomic": "4500000",
+          "listed_atomic": "3000000",
+          "listing_source": "https://api.example-seller.test/.well-known/x402-listing (example)",
+          "listing_sha256": "1dc084e36d94ae710200759f4b63dc47717345ebf9553bc850eee0bd056f6a56"
+        }
+      },
+      {
+        "id": "payto.change",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.300Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40967b8d734f4d577d47e3db8260fc0488501e6446d88ee3e918a64ebe4953c3"
+        },
+        "evidence": {
+          "payto_first_seen_at": "2026-11-13T10:00:00Z",
+          "changes_since_first_seen": 0
+        }
+      },
+      {
+        "id": "payee.wallet_risk",
+        "result": "warn",
+        "ran_at": "2026-11-19T09:00:00.640Z",
+        "evidence_ceiling": "recomputable_from_chain",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "9f9e76acb8bbb99013df6b138bb0ea132b3261a33bc817c363b0a61f9fedf9f0"
+        },
+        "evidence": {
+          "network": "eip155:8453",
+          "first_tx_block": 22000000,
+          "first_tx_hash": "0xabababababababababababababababababababababababababababababababab",
+          "age_days_at_check": 6
+        }
+      },
+      {
+        "id": "x-polkulab.sanctions_list",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.700Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "26b0de9677fe5d6fff4be38d85189680c587899cfdd00ed8a9c94e51f73f8785"
+        },
+        "evidence": {
+          "list": "OFAC SDN (digital currency addresses)",
+          "list_snapshot_date": "2026-11-18",
+          "list_snapshot_sha256": "a432ebe7393a9647de2b2defdf70bfc3f53d3fb6979eebc00a4c2090ffa12180",
+          "match": false
+        }
+      }
+    ],
+    "decision": {
+      "verdict": "warn",
+      "score": 62,
+      "level": "medium",
+      "reason_codes": [
+        "PAYEE_NEW",
+        "PRICE_ABOVE_LISTING"
+      ],
+      "policy_id": "policy:default-v1",
+      "payer_agent_id": "agent:example-buyer-01"
+    },
+    "field_evidence_ceilings": {
+      "/payment/network": "recomputable_from_client_view",
+      "/payment/asset": "recomputable_from_client_view",
+      "/payment/amount_atomic": "recomputable_from_client_view",
+      "/payment/payer": "recomputable_from_client_view",
+      "/payment/payee": "recomputable_from_client_view",
+      "/payment/resource": "recomputable_from_client_view",
+      "/payment/authorization": "recomputable_from_client_view",
+      "/payment/payment_requirements_sha256": "recomputable_from_client_view",
+      "/payment/request_sha256": "recomputable_from_client_view",
+      "/payment/tx_hash": "recomputable_from_chain",
+      "/timeline": "issuer_assertion",
+      "/decision": "issuer_assertion"
+    },
+    "links": [
+      {
+        "rel": "content_time_record",
+        "issuer": "https://content-time.example.test",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "56b58837370e68a20b39ffca5ab742300ef433d12fd2c86b0456c02206e0baa7"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      },
+      {
+        "rel": "seller_attestation",
+        "issuer": "https://attest.example-registry.test",
+        "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+        "expires_at": "2026-12-10T00:00:00Z",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "cb82f757ca96aadf45fed13b88b54d2ffc3b375990dd1b870f4b96ff213847fe"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      }
+    ],
+    "not_covered": [
+      {
+        "code": "SETTLEMENT",
+        "text": "Whether or when the payment settled. The record is signed before settlement; tx_hash is null and settlement is attested by a separate linked record."
+      },
+      {
+        "code": "RESOURCE_DELIVERY",
+        "text": "Whether the seller delivered the resource after payment."
+      },
+      {
+        "code": "RESOURCE_QUALITY",
+        "text": "Whether the delivered content was correct, fresh or fit for purpose."
+      },
+      {
+        "code": "PAYEE_LEGAL_IDENTITY",
+        "text": "Who legally owns the payee wallet. No KYC/KYB was performed."
+      },
+      {
+        "code": "LISTS_NOT_CHECKED",
+        "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."
+      },
+      {
+        "code": "PRINCIPAL_AUTHORIZATION",
+        "text": "Whether the human or organisation behind the payer agent approved this payment."
+      },
+      {
+        "code": "FUTURE_STATE",
+        "text": "Anything that happened after decision_issued_at."
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "polkulab-demo-2026-11",
+      "sig_base64": "2QbU1bC558wjZGkE3bQaH7sK9n1BpgF7uByR2TKwd//+gOzJk1H9m3B0MGVlg8tyQ5Z7zc/S8MUh4RhO4FajBw=="
+    }
+  },
+  "tampered": {
+    "schema_version": "1.0",
+    "record_type": "x402-pre-payment-decision",
+    "record_id": "at_dr_example_v10_000001",
+    "example_data": true,
+    "issuer": "https://trypolkulab.com",
+    "signing_key": {
+      "key_id": "polkulab-demo-2026-11",
+      "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
+    },
+    "payment": {
+      "x402_version": 2,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x0000000000000000000000000000000000000003",
+      "asset_symbol": "USDC",
+      "asset_decimals": 6,
+      "amount_atomic": "4500000",
+      "payer": "0x0000000000000000000000000000000000000001",
+      "payee": "0x0000000000000000000000000000000000000002",
+      "resource": "https://api.example-seller.test/v1/report",
+      "authorization": {
+        "nonce_sha256": {
+          "alg": "sha-256",
+          "input": "eip3009-nonce-bytes32",
+          "hex": "1e69a726790da06715fa2df707d84f1e100b3471258599c8c2a80a5646d6965a"
+        },
+        "valid_after": "2026-11-19T08:59:00Z",
+        "valid_before": "2026-11-19T09:05:00Z"
+      },
+      "payment_requirements_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(payment_requirements)",
+        "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+      },
+      "request_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(resource_request)",
+        "hex": "4ce73a8537d58f8dc5e5f274b863b6f6b31ea836ece68d17d267a37c03c69421"
+      },
+      "tx_hash": null
+    },
+    "timeline": {
+      "requirements_received_at": "2026-11-19T09:00:00.000Z",
+      "authorization_presented_at": "2026-11-19T09:00:00.150Z",
+      "decision_issued_at": "2026-11-19T09:00:00.910Z"
+    },
+    "checks": [
+      {
+        "id": "endpoint.health",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.210Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
+        },
+        "evidence": {
+          "http_status": 402,
+          "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+        }
+      },
+      {
+        "id": "terms.price_vs_listing",
+        "result": "warn",
+        "ran_at": "2026-11-19T09:00:00.260Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40850443c2ee7cd238af63428db32a28ef150e003dde0582c495649bcbe60643"
+        },
+        "evidence": {
+          "requested_atomic": "4500000",
+          "listed_atomic": "3000000",
+          "listing_source": "https://api.example-seller.test/.well-known/x402-listing (example)",
+          "listing_sha256": "1dc084e36d94ae710200759f4b63dc47717345ebf9553bc850eee0bd056f6a56"
+        }
+      },
+      {
+        "id": "payto.change",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.300Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40967b8d734f4d577d47e3db8260fc0488501e6446d88ee3e918a64ebe4953c3"
+        },
+        "evidence": {
+          "payto_first_seen_at": "2026-11-13T10:00:00Z",
+          "changes_since_first_seen": 0
+        }
+      },
+      {
+        "id": "payee.wallet_risk",
+        "result": "warn",
+        "ran_at": "2026-11-19T09:00:00.640Z",
+        "evidence_ceiling": "recomputable_from_chain",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "9f9e76acb8bbb99013df6b138bb0ea132b3261a33bc817c363b0a61f9fedf9f0"
+        },
+        "evidence": {
+          "network": "eip155:8453",
+          "first_tx_block": 22000000,
+          "first_tx_hash": "0xabababababababababababababababababababababababababababababababab",
+          "age_days_at_check": 6
+        }
+      },
+      {
+        "id": "x-polkulab.sanctions_list",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.700Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "26b0de9677fe5d6fff4be38d85189680c587899cfdd00ed8a9c94e51f73f8785"
+        },
+        "evidence": {
+          "list": "OFAC SDN (digital currency addresses)",
+          "list_snapshot_date": "2026-11-18",
+          "list_snapshot_sha256": "a432ebe7393a9647de2b2defdf70bfc3f53d3fb6979eebc00a4c2090ffa12180",
+          "match": false
+        }
+      }
+    ],
+    "decision": {
+      "verdict": "warn",
+      "score": 30,
+      "level": "medium",
+      "reason_codes": [
+        "PAYEE_NEW",
+        "PRICE_ABOVE_LISTING"
+      ],
+      "policy_id": "policy:default-v1",
+      "payer_agent_id": "agent:example-buyer-01"
+    },
+    "field_evidence_ceilings": {
+      "/payment/network": "recomputable_from_client_view",
+      "/payment/asset": "recomputable_from_client_view",
+      "/payment/amount_atomic": "recomputable_from_client_view",
+      "/payment/payer": "recomputable_from_client_view",
+      "/payment/payee": "recomputable_from_client_view",
+      "/payment/resource": "recomputable_from_client_view",
+      "/payment/authorization": "recomputable_from_client_view",
+      "/payment/payment_requirements_sha256": "recomputable_from_client_view",
+      "/payment/request_sha256": "recomputable_from_client_view",
+      "/payment/tx_hash": "recomputable_from_chain",
+      "/timeline": "issuer_assertion",
+      "/decision": "issuer_assertion"
+    },
+    "links": [
+      {
+        "rel": "content_time_record",
+        "issuer": "https://content-time.example.test",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "56b58837370e68a20b39ffca5ab742300ef433d12fd2c86b0456c02206e0baa7"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      },
+      {
+        "rel": "seller_attestation",
+        "issuer": "https://attest.example-registry.test",
+        "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+        "expires_at": "2026-12-10T00:00:00Z",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "cb82f757ca96aadf45fed13b88b54d2ffc3b375990dd1b870f4b96ff213847fe"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      }
+    ],
+    "not_covered": [
+      {
+        "code": "SETTLEMENT",
+        "text": "Whether or when the payment settled. The record is signed before settlement; tx_hash is null and settlement is attested by a separate linked record."
+      },
+      {
+        "code": "RESOURCE_DELIVERY",
+        "text": "Whether the seller delivered the resource after payment."
+      },
+      {
+        "code": "RESOURCE_QUALITY",
+        "text": "Whether the delivered content was correct, fresh or fit for purpose."
+      },
+      {
+        "code": "PAYEE_LEGAL_IDENTITY",
+        "text": "Who legally owns the payee wallet. No KYC/KYB was performed."
+      },
+      {
+        "code": "LISTS_NOT_CHECKED",
+        "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."
+      },
+      {
+        "code": "PRINCIPAL_AUTHORIZATION",
+        "text": "Whether the human or organisation behind the payer agent approved this payment."
+      },
+      {
+        "code": "FUTURE_STATE",
+        "text": "Anything that happened after decision_issued_at."
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "polkulab-demo-2026-11",
+      "sig_base64": "2QbU1bC558wjZGkE3bQaH7sK9n1BpgF7uByR2TKwd//+gOzJk1H9m3B0MGVlg8tyQ5Z7zc/S8MUh4RhO4FajBw=="
+    }
+  },
+  "wrong_key": {
+    "schema_version": "1.0",
+    "record_type": "x402-pre-payment-decision",
+    "record_id": "at_dr_example_v10_000002",
+    "example_data": true,
+    "issuer": "https://trypolkulab.com",
+    "signing_key": {
+      "key_id": "polkulab-demo-2026-11",
+      "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
+    },
+    "payment": {
+      "x402_version": 2,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x0000000000000000000000000000000000000003",
+      "asset_symbol": "USDC",
+      "asset_decimals": 6,
+      "amount_atomic": "4500000",
+      "payer": "0x0000000000000000000000000000000000000001",
+      "payee": "0x0000000000000000000000000000000000000002",
+      "resource": "https://api.example-seller.test/v1/report",
+      "authorization": {
+        "nonce_sha256": {
+          "alg": "sha-256",
+          "input": "eip3009-nonce-bytes32",
+          "hex": "1e69a726790da06715fa2df707d84f1e100b3471258599c8c2a80a5646d6965a"
+        },
+        "valid_after": "2026-11-19T08:59:00Z",
+        "valid_before": "2026-11-19T09:05:00Z"
+      },
+      "payment_requirements_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(payment_requirements)",
+        "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+      },
+      "request_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(resource_request)",
+        "hex": "4ce73a8537d58f8dc5e5f274b863b6f6b31ea836ece68d17d267a37c03c69421"
+      },
+      "tx_hash": null
+    },
+    "timeline": {
+      "requirements_received_at": "2026-11-19T09:00:00.000Z",
+      "authorization_presented_at": "2026-11-19T09:00:00.150Z",
+      "decision_issued_at": "2026-11-19T09:00:00.910Z"
+    },
+    "checks": [
+      {
+        "id": "endpoint.health",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.210Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
+        },
+        "evidence": {
+          "http_status": 402,
+          "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+        }
+      },
+      {
+        "id": "terms.price_vs_listing",
+        "result": "warn",
+        "ran_at": "2026-11-19T09:00:00.260Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40850443c2ee7cd238af63428db32a28ef150e003dde0582c495649bcbe60643"
+        },
+        "evidence": {
+          "requested_atomic": "4500000",
+          "listed_atomic": "3000000",
+          "listing_source": "https://api.example-seller.test/.well-known/x402-listing (example)",
+          "listing_sha256": "1dc084e36d94ae710200759f4b63dc47717345ebf9553bc850eee0bd056f6a56"
+        }
+      },
+      {
+        "id": "payto.change",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.300Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40967b8d734f4d577d47e3db8260fc0488501e6446d88ee3e918a64ebe4953c3"
+        },
+        "evidence": {
+          "payto_first_seen_at": "2026-11-13T10:00:00Z",
+          "changes_since_first_seen": 0
+        }
+      },
+      {
+        "id": "payee.wallet_risk",
+        "result": "warn",
+        "ran_at": "2026-11-19T09:00:00.640Z",
+        "evidence_ceiling": "recomputable_from_chain",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "9f9e76acb8bbb99013df6b138bb0ea132b3261a33bc817c363b0a61f9fedf9f0"
+        },
+        "evidence": {
+          "network": "eip155:8453",
+          "first_tx_block": 22000000,
+          "first_tx_hash": "0xabababababababababababababababababababababababababababababababab",
+          "age_days_at_check": 6
+        }
+      },
+      {
+        "id": "x-polkulab.sanctions_list",
+        "result": "pass",
+        "ran_at": "2026-11-19T09:00:00.700Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "26b0de9677fe5d6fff4be38d85189680c587899cfdd00ed8a9c94e51f73f8785"
+        },
+        "evidence": {
+          "list": "OFAC SDN (digital currency addresses)",
+          "list_snapshot_date": "2026-11-18",
+          "list_snapshot_sha256": "a432ebe7393a9647de2b2defdf70bfc3f53d3fb6979eebc00a4c2090ffa12180",
+          "match": false
+        }
+      }
+    ],
+    "decision": {
+      "verdict": "warn",
+      "score": 62,
+      "level": "medium",
+      "reason_codes": [
+        "PAYEE_NEW",
+        "PRICE_ABOVE_LISTING"
+      ],
+      "policy_id": "policy:default-v1",
+      "payer_agent_id": "agent:example-buyer-01"
+    },
+    "field_evidence_ceilings": {
+      "/payment/network": "recomputable_from_client_view",
+      "/payment/asset": "recomputable_from_client_view",
+      "/payment/amount_atomic": "recomputable_from_client_view",
+      "/payment/payer": "recomputable_from_client_view",
+      "/payment/payee": "recomputable_from_client_view",
+      "/payment/resource": "recomputable_from_client_view",
+      "/payment/authorization": "recomputable_from_client_view",
+      "/payment/payment_requirements_sha256": "recomputable_from_client_view",
+      "/payment/request_sha256": "recomputable_from_client_view",
+      "/payment/tx_hash": "recomputable_from_chain",
+      "/timeline": "issuer_assertion",
+      "/decision": "issuer_assertion"
+    },
+    "links": [
+      {
+        "rel": "content_time_record",
+        "issuer": "https://content-time.example.test",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "56b58837370e68a20b39ffca5ab742300ef433d12fd2c86b0456c02206e0baa7"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      },
+      {
+        "rel": "seller_attestation",
+        "issuer": "https://attest.example-registry.test",
+        "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+        "expires_at": "2026-12-10T00:00:00Z",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "cb82f757ca96aadf45fed13b88b54d2ffc3b375990dd1b870f4b96ff213847fe"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      }
+    ],
+    "not_covered": [
+      {
+        "code": "SETTLEMENT",
+        "text": "Whether or when the payment settled. The record is signed before settlement; tx_hash is null and settlement is attested by a separate linked record."
+      },
+      {
+        "code": "RESOURCE_DELIVERY",
+        "text": "Whether the seller delivered the resource after payment."
+      },
+      {
+        "code": "RESOURCE_QUALITY",
+        "text": "Whether the delivered content was correct, fresh or fit for purpose."
+      },
+      {
+        "code": "PAYEE_LEGAL_IDENTITY",
+        "text": "Who legally owns the payee wallet. No KYC/KYB was performed."
+      },
+      {
+        "code": "LISTS_NOT_CHECKED",
+        "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."
+      },
+      {
+        "code": "PRINCIPAL_AUTHORIZATION",
+        "text": "Whether the human or organisation behind the payer agent approved this payment."
+      },
+      {
+        "code": "FUTURE_STATE",
+        "text": "Anything that happened after decision_issued_at."
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "polkulab-demo-2026-11",
+      "sig_base64": "yq8kGQZmwBF8tftllseyV3HCQerewOIlsJX1f60L628k42oGnOKkhYvxr3AKgeNHHFWG+SyYeI0P36DRv1RPCg=="
+    }
+  },
+  "expired_key": {
+    "schema_version": "1.0",
+    "record_type": "x402-pre-payment-decision",
+    "record_id": "at_dr_example_v10_000003",
+    "example_data": true,
+    "issuer": "https://trypolkulab.com",
+    "signing_key": {
+      "key_id": "polkulab-demo-2026-11",
+      "keyset_uri": "https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"
+    },
+    "payment": {
+      "x402_version": 2,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x0000000000000000000000000000000000000003",
+      "asset_symbol": "USDC",
+      "asset_decimals": 6,
+      "amount_atomic": "4500000",
+      "payer": "0x0000000000000000000000000000000000000001",
+      "payee": "0x0000000000000000000000000000000000000002",
+      "resource": "https://api.example-seller.test/v1/report",
+      "authorization": {
+        "nonce_sha256": {
+          "alg": "sha-256",
+          "input": "eip3009-nonce-bytes32",
+          "hex": "1e69a726790da06715fa2df707d84f1e100b3471258599c8c2a80a5646d6965a"
+        },
+        "valid_after": "2027-01-15T08:59:00Z",
+        "valid_before": "2027-01-15T09:05:00Z"
+      },
+      "payment_requirements_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(payment_requirements)",
+        "hex": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+      },
+      "request_sha256": {
+        "alg": "sha-256",
+        "input": "jcs(resource_request)",
+        "hex": "4ce73a8537d58f8dc5e5f274b863b6f6b31ea836ece68d17d267a37c03c69421"
+      },
+      "tx_hash": null
+    },
+    "timeline": {
+      "requirements_received_at": "2027-01-15T09:00:00.000Z",
+      "authorization_presented_at": "2027-01-15T09:00:00.150Z",
+      "decision_issued_at": "2027-01-15T09:00:00.910Z"
+    },
+    "checks": [
+      {
+        "id": "endpoint.health",
+        "result": "pass",
+        "ran_at": "2027-01-15T09:00:00.210Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "5d796b99c989a1929083e185b678b928241f6f7fcb5a4b65b639a736b7280278"
+        },
+        "evidence": {
+          "http_status": 402,
+          "payment_requirements_sha256": "e9027bdddb78917dafd6dbccab022028bc1b499ac6df1db04284386327ed2841"
+        }
+      },
+      {
+        "id": "terms.price_vs_listing",
+        "result": "warn",
+        "ran_at": "2027-01-15T09:00:00.260Z",
+        "evidence_ceiling": "recomputable_from_client_view",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40850443c2ee7cd238af63428db32a28ef150e003dde0582c495649bcbe60643"
+        },
+        "evidence": {
+          "requested_atomic": "4500000",
+          "listed_atomic": "3000000",
+          "listing_source": "https://api.example-seller.test/.well-known/x402-listing (example)",
+          "listing_sha256": "1dc084e36d94ae710200759f4b63dc47717345ebf9553bc850eee0bd056f6a56"
+        }
+      },
+      {
+        "id": "payto.change",
+        "result": "pass",
+        "ran_at": "2027-01-15T09:00:00.300Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "40967b8d734f4d577d47e3db8260fc0488501e6446d88ee3e918a64ebe4953c3"
+        },
+        "evidence": {
+          "payto_first_seen_at": "2026-11-13T10:00:00Z",
+          "changes_since_first_seen": 0
+        }
+      },
+      {
+        "id": "payee.wallet_risk",
+        "result": "warn",
+        "ran_at": "2027-01-15T09:00:00.640Z",
+        "evidence_ceiling": "recomputable_from_chain",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "9f9e76acb8bbb99013df6b138bb0ea132b3261a33bc817c363b0a61f9fedf9f0"
+        },
+        "evidence": {
+          "network": "eip155:8453",
+          "first_tx_block": 22000000,
+          "first_tx_hash": "0xabababababababababababababababababababababababababababababababab",
+          "age_days_at_check": 6
+        }
+      },
+      {
+        "id": "x-polkulab.sanctions_list",
+        "result": "pass",
+        "ran_at": "2027-01-15T09:00:00.700Z",
+        "evidence_ceiling": "issuer_assertion",
+        "evidence_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(evidence)",
+          "hex": "26b0de9677fe5d6fff4be38d85189680c587899cfdd00ed8a9c94e51f73f8785"
+        },
+        "evidence": {
+          "list": "OFAC SDN (digital currency addresses)",
+          "list_snapshot_date": "2026-11-18",
+          "list_snapshot_sha256": "a432ebe7393a9647de2b2defdf70bfc3f53d3fb6979eebc00a4c2090ffa12180",
+          "match": false
+        }
+      }
+    ],
+    "decision": {
+      "verdict": "warn",
+      "score": 62,
+      "level": "medium",
+      "reason_codes": [
+        "PAYEE_NEW",
+        "PRICE_ABOVE_LISTING"
+      ],
+      "policy_id": "policy:default-v1",
+      "payer_agent_id": "agent:example-buyer-01"
+    },
+    "field_evidence_ceilings": {
+      "/payment/network": "recomputable_from_client_view",
+      "/payment/asset": "recomputable_from_client_view",
+      "/payment/amount_atomic": "recomputable_from_client_view",
+      "/payment/payer": "recomputable_from_client_view",
+      "/payment/payee": "recomputable_from_client_view",
+      "/payment/resource": "recomputable_from_client_view",
+      "/payment/authorization": "recomputable_from_client_view",
+      "/payment/payment_requirements_sha256": "recomputable_from_client_view",
+      "/payment/request_sha256": "recomputable_from_client_view",
+      "/payment/tx_hash": "recomputable_from_chain",
+      "/timeline": "issuer_assertion",
+      "/decision": "issuer_assertion"
+    },
+    "links": [
+      {
+        "rel": "content_time_record",
+        "issuer": "https://content-time.example.test",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "56b58837370e68a20b39ffca5ab742300ef433d12fd2c86b0456c02206e0baa7"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      },
+      {
+        "rel": "seller_attestation",
+        "issuer": "https://attest.example-registry.test",
+        "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+        "expires_at": "2026-12-10T00:00:00Z",
+        "record_sha256": {
+          "alg": "sha-256",
+          "input": "jcs(linked-record)",
+          "hex": "cb82f757ca96aadf45fed13b88b54d2ffc3b375990dd1b870f4b96ff213847fe"
+        },
+        "evidence_ceiling": "issuer_assertion"
+      }
+    ],
+    "not_covered": [
+      {
+        "code": "SETTLEMENT",
+        "text": "Whether or when the payment settled. The record is signed before settlement; tx_hash is null and settlement is attested by a separate linked record."
+      },
+      {
+        "code": "RESOURCE_DELIVERY",
+        "text": "Whether the seller delivered the resource after payment."
+      },
+      {
+        "code": "RESOURCE_QUALITY",
+        "text": "Whether the delivered content was correct, fresh or fit for purpose."
+      },
+      {
+        "code": "PAYEE_LEGAL_IDENTITY",
+        "text": "Who legally owns the payee wallet. No KYC/KYB was performed."
+      },
+      {
+        "code": "LISTS_NOT_CHECKED",
+        "text": "Sanctions or risk lists other than the one named in the x-polkulab.sanctions_list check, and list changes after its snapshot date."
+      },
+      {
+        "code": "PRINCIPAL_AUTHORIZATION",
+        "text": "Whether the human or organisation behind the payer agent approved this payment."
+      },
+      {
+        "code": "FUTURE_STATE",
+        "text": "Anything that happened after decision_issued_at."
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "polkulab-demo-2026-11",
+      "sig_base64": "nmSumJ7c3+POAglw0JeGiDhWEJsIBGk0GlQuVAfK/ydXiS/3OHPhrQQKk9oyF46jRzWnCenWL40FM9rsbfsKAg=="
+    }
+  }
+};
+  const DEMO_BINDING_INPUTS = {
+  "_note": "EXAMPLE DATA ONLY. Raw inputs a client would hold, so a verifier can recompute the binding hashes.",
+  "authorization_nonce": "0xe1e1e1e100000000000000000000000000000000000000000000000000000001",
+  "x402_version": 2,
+  "payment_requirements": {
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "amount": "4500000",
+    "asset": "0x0000000000000000000000000000000000000003",
+    "payTo": "0x0000000000000000000000000000000000000002",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+      "name": "USD Coin (example)",
+      "version": "2"
+    }
+  },
+  "resource": {
+    "url": "https://api.example-seller.test/v1/report",
+    "description": "EXAMPLE resource (example data)",
+    "mimeType": "application/json"
+  },
+  "resource_request": {
+    "method": "GET",
+    "url": "https://api.example-seller.test/v1/report?id=example-123",
+    "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+};
+  const DEMO_LINKED = [
+  {
+    "_note": "EXAMPLE DATA ONLY. Stand-in for a separately issued content-time record.",
+    "record_type": "example-content-time-record",
+    "issuer": "https://content-time.example.test",
+    "resource": "https://api.example-seller.test/v1/report?id=example-123",
+    "content_sha256": "c13f8fa911574eb7721c9784f96b4f26916a72ea8b6fe8aeed66696b2de150c9",
+    "observed_at": "2026-11-19T09:00:02Z"
+  },
+  {
+    "_note": "EXAMPLE DATA ONLY. Stand-in for a seller attestation.",
+    "record_type": "example-seller-attestation",
+    "issuer": "https://attest.example-registry.test",
+    "subject": "https://api.example-seller.test",
+    "scope": "payTo 0x0000000000000000000000000000000000000002 is controlled by the operator of api.example-seller.test",
+    "issued_at": "2026-11-10T00:00:00Z",
+    "expires_at": "2026-12-10T00:00:00Z"
+  }
+];
+  /* END GENERATED */
 
   function serializeString(s) {
     let out = '"';
@@ -449,12 +1357,42 @@ const AgentTrustVerifier = (function () {
     throw new Error('Public key is not an Ed25519 SubjectPublicKeyInfo or raw 32-byte key');
   }
 
+  const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
   function b64ToBytes(b64) {
     const clean = String(b64).replace(/\s+/g, '');
     const bin = atob(clean);
     const out = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
+  }
+
+  function bytesToB64(bytes) {
+    let out = '';
+    for (let i = 0; i < bytes.length; i += 3) {
+      const n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+      out += B64_ALPHABET[(n >> 18) & 63] + B64_ALPHABET[(n >> 12) & 63] +
+        (i + 1 < bytes.length ? B64_ALPHABET[(n >> 6) & 63] : '=') +
+        (i + 2 < bytes.length ? B64_ALPHABET[n & 63] : '=');
+    }
+    return out;
+  }
+
+  // Strict, canonical base64 (SPEC §3): 64 bytes, and re-encoding gives the same string.
+  function decodeSig(s) {
+    if (typeof s !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(s) || s.length % 4) return null;
+    let bytes;
+    try { bytes = b64ToBytes(s); } catch (e) { return null; }
+    if (bytes.length !== 64 || bytesToB64(bytes) !== s) return null;
+    return bytes;
+  }
+
+  const ED25519_L = (BigInt(1) << BigInt(252)) + BigInt('27742317777372353535851937790883648493');
+  // Strict RFC 8032: S (last 32 bytes, little-endian) must be < L. tweetnacl does not check this.
+  function sIsReduced(sig) {
+    let s = BigInt(0);
+    for (let i = 63; i >= 32; i--) s = (s << BigInt(8)) | BigInt(sig[i]);
+    return s < ED25519_L;
   }
 
   async function sha256Hex(bytes) {
@@ -472,81 +1410,581 @@ const AgentTrustVerifier = (function () {
   }
 
   async function verifyWithWebCrypto(message, signature, spkiDer) {
-    const key = await crypto.subtle.importKey(
-      'spki',
-      spkiDer,
-      { name: 'Ed25519' },
-      false,
-      ['verify']
-    );
+    const key = await crypto.subtle.importKey('spki', spkiDer, { name: 'Ed25519' }, false, ['verify']);
     return crypto.subtle.verify({ name: 'Ed25519' }, key, signature, message);
   }
 
   function verifyWithTweetnacl(message, signature, rawPub) {
-    if (!nacl || !nacl.sign || !nacl.sign.detached) {
-      throw new Error('tweetnacl is not available');
-    }
+    if (!nacl || !nacl.sign || !nacl.sign.detached) throw new Error('tweetnacl is not available');
+    if (signature.length !== 64 || !sIsReduced(signature)) return false;
     return nacl.sign.detached.verify(message, signature, rawPub);
   }
 
-  async function verifyRecord(record, pem, options) {
-    const opts = options || {};
-    const rec = (typeof record === 'string') ? JSON.parse(record) : JSON.parse(JSON.stringify(record));
-    if (!rec || typeof rec !== 'object' || !rec.signature) {
-      throw new Error('Record has no signature field');
-    }
-    const sig = rec.signature;
-    delete rec.signature;
-    const message = canonicalizeBytes(rec);
-    const digest = await sha256Hex(message);
-    const sigBytes = b64ToBytes(sig.sig_base64);
-    if (sigBytes.length !== 64) throw new Error('Ed25519 signature must be 64 bytes');
+  async function ed25519Verify(message, sigBytes, pem, opts) {
+    if (sigBytes.length !== 64 || !sIsReduced(sigBytes)) return { ok: false, method: 'strict-precheck' };
     const { der } = pemToDer(pem);
     const rawPub = spkiToRawEd25519(der);
-
-    let ok = false;
-    let method = '';
-    let lastError = null;
-    const forceTweetnacl = !!opts.forceTweetnacl;
-    const forceWebCrypto = !!opts.forceWebCrypto;
-
-    if (!forceTweetnacl && webCryptoEd25519Available()) {
+    if (!opts.forceTweetnacl && webCryptoEd25519Available()) {
       try {
-        ok = await verifyWithWebCrypto(message, sigBytes, der);
-        method = 'webcrypto';
+        return { ok: await verifyWithWebCrypto(message, sigBytes, der), method: 'webcrypto' };
       } catch (err) {
-        lastError = err;
-        if (forceWebCrypto) throw err;
+        if (opts.forceWebCrypto) throw err;
       }
     }
-    if (method !== 'webcrypto') {
-      ok = verifyWithTweetnacl(message, sigBytes, rawPub);
-      method = 'tweetnacl';
-    }
+    return { ok: verifyWithTweetnacl(message, sigBytes, rawPub), method: 'tweetnacl' };
+  }
 
-    return {
-      ok: !!ok,
-      status: ok ? 'VALID' : 'INVALID',
+  // ---------------------------------------------------------------- v1.0
+  const SCHEMA_VERSION = '1.0';
+  const LEGACY_V02 = '0.2-draft';
+  // Minimal check-id registry (SPEC §6.2). Custom ids: "x-<issuer>.". Unknown ids never invalidate.
+  const CHECK_REGISTRY = ['endpoint.health', 'terms.price_vs_listing', 'payto.change', 'payee.wallet_risk'];
+  const TS_RE = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{3}))?Z$/;
+  const NONCE_RE = /^0x[0-9a-fA-F]{64}$/;
+
+  function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  function ptrJoin(ptr, key) { return ptr + '/' + String(key).replace(/~/g, '~0').replace(/\//g, '~1'); }
+  function uniq(xs) { return xs.filter(function (x, i) { return xs.indexOf(x) === i; }); }
+
+  // Token scan of JSON text (same algorithm as scan_json in verify.py): duplicate members
+  // (DUPLICATE_MEMBER) and numbers with a fraction or exponent part or outside +-(2^53-1)
+  // (BAD_NUMBER), with JSON Pointers. Throws for text that is not JSON. Does not depend on
+  // JSON.parse source-text access, so it fails closed in every browser.
+  function scanJson(text) {
+    let i = 0;
+    const n = text.length, dups = [], bad = [];
+    function ws() { while (i < n && ' \t\n\r'.indexOf(text[i]) >= 0) i++; }
+    function str() {
+      const start = i; i++;
+      while (i < n) {
+        const c = text[i];
+        if (c === '\\') i += 2;
+        else if (c === '"') { i++; return JSON.parse(text.slice(start, i)); }
+        else i++;
+      }
+      throw new Error('unterminated string');
+    }
+    const NUM = /-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?/y;
+    function val(ptr, depth) {
+      if (depth > 200) throw new Error('nesting too deep');
+      ws();
+      const c = text[i];
+      if (c === '{') {
+        i++;
+        const seen = Object.create(null);
+        ws();
+        if (text[i] === '}') { i++; return; }
+        for (;;) {
+          ws();
+          if (text[i] !== '"') throw new Error('expected member name');
+          const k = str();
+          ws();
+          if (text[i] !== ':') throw new Error('expected :');
+          i++;
+          if (seen[k]) dups.push('DUPLICATE_MEMBER:' + ptrJoin(ptr, k));
+          seen[k] = true;
+          val(ptrJoin(ptr, k), depth + 1);
+          ws();
+          if (text[i] === ',') { i++; continue; }
+          if (text[i] === '}') { i++; return; }
+          throw new Error('expected , or }');
+        }
+      }
+      if (c === '[') {
+        i++;
+        ws();
+        if (text[i] === ']') { i++; return; }
+        for (let k = 0; ; k++) {
+          val(ptrJoin(ptr, k), depth + 1);
+          ws();
+          if (text[i] === ',') { i++; continue; }
+          if (text[i] === ']') { i++; return; }
+          throw new Error('expected , or ]');
+        }
+      }
+      if (c === '"') { str(); return; }
+      NUM.lastIndex = i;
+      const m = NUM.exec(text);
+      if (m && m[0]) {
+        i += m[0].length;
+        if (m[2] || m[3] || m[1].length > 16 || !Number.isSafeInteger(Number(m[0]))) bad.push('BAD_NUMBER:' + ptr);
+        return;
+      }
+      for (const lit of ['true', 'false', 'null']) if (text.startsWith(lit, i)) { i += lit.length; return; }
+      throw new Error('unexpected character');
+    }
+    val('', 0);
+    ws();
+    if (i !== n) throw new Error('trailing data');
+    return { dups: uniq(dups), bad: uniq(bad) };
+  }
+
+  // Returns { obj, errors }: errors are DUPLICATE_MEMBER (first), else BAD_NUMBER, or BAD_JSON.
+  function parseJsonText(text) {
+    let sc, obj;
+    try { sc = scanJson(text); obj = JSON.parse(text); } catch (e) { return { obj: null, errors: ['BAD_JSON'] }; }
+    return { obj: obj, errors: sc.dups.length ? sc.dups : sc.bad };
+  }
+
+  function numberErrors(o, ptr) {
+    ptr = ptr || '';
+    if (typeof o === 'number') return Number.isSafeInteger(o) ? [] : ['BAD_NUMBER:' + ptr];
+    let out = [];
+    if (Array.isArray(o)) o.forEach(function (v, i) { out = out.concat(numberErrors(v, ptrJoin(ptr, i))); });
+    else if (isObj(o)) Object.keys(o).forEach(function (k) { out = out.concat(numberErrors(o[k], ptrJoin(ptr, k))); });
+    return out;
+  }
+
+  function daysInMonth(y, m) {
+    if (m === 2) return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 29 : 28;
+    return [4, 6, 9, 11].indexOf(m) >= 0 ? 30 : 31;
+  }
+  function daysFromCivil(y, m, d) {
+    y -= m <= 2 ? 1 : 0;
+    const era = Math.floor(y / 400);
+    const yoe = y - era * 400;
+    const doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+    const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+    return era * 146097 + doe - 719468;
+  }
+  // Epoch milliseconds for a v1.0 timestamp, or null (BAD_TIMESTAMP). Same rule as verify.py.
+  function tsMs(s) {
+    const m = typeof s === 'string' ? TS_RE.exec(s) : null;
+    if (!m) return null;
+    const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5], se = +m[6], ms = +(m[7] || 0);
+    if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth(y, mo) && h < 24 && mi < 60 && se < 60)) return null;
+    return ((daysFromCivil(y, mo, d) * 24 + h) * 60 + mi) * 60000 + se * 1000 + ms;
+  }
+
+  function typeOk(t, v) {
+    if (Array.isArray(t)) return t.some(function (x) { return typeOk(x, v); });
+    switch (t) {
+      case 'object': return isObj(v);
+      case 'array': return Array.isArray(v);
+      case 'string': return typeof v === 'string';
+      case 'boolean': return typeof v === 'boolean';
+      case 'null': return v === null;
+      case 'integer': return typeof v === 'number' && Number.isInteger(v);
+      case 'number': return typeof v === 'number';
+    }
+    throw new Error('unknown schema type ' + t);
+  }
+  function jsonEqual(a, b) {
+    if (Array.isArray(a) || Array.isArray(b)) {
+      return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every(function (x, i) { return jsonEqual(x, b[i]); });
+    }
+    if (isObj(a) || isObj(b)) {
+      if (!isObj(a) || !isObj(b)) return false;
+      const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+      return jsonEqual(ka, kb) && ka.every(function (k) { return jsonEqual(a[k], b[k]); });
+    }
+    return a === b;
+  }
+
+  // Small JSON Schema 2020-12 validator for the keywords used in schema/*.json.
+  // Same algorithm as schema_errors() in verify.py, so both verifiers report the same
+  // errors: "SCHEMA_VIOLATION:<json pointer>", or "<x-error-code>:<pointer>".
+  function schemaErrors(root, node, inst, ptr) {
+    ptr = ptr || '';
+    let local = [];
+    const SV = 'SCHEMA_VIOLATION:';
+    if (has(node, '$ref')) {
+      const ref = node.$ref;
+      if (ref.indexOf('#/$defs/') !== 0) throw new Error('unsupported $ref ' + ref);
+      local = local.concat(schemaErrors(root, root.$defs[ref.slice(8)], inst, ptr));
+    }
+    if (has(node, 'type') && !typeOk(node.type, inst)) {
+      local.push(SV + ptr);
+    } else {
+      if (has(node, 'const') && !jsonEqual(inst, node.const)) local.push(SV + ptr);
+      if (has(node, 'enum') && !node.enum.some(function (e) { return jsonEqual(inst, e); })) local.push(SV + ptr);
+      if (has(node, 'not') && schemaErrors(root, node.not, inst, ptr).length === 0) local.push(SV + ptr);
+      if (typeof inst === 'string') {
+        const len = Array.from(inst).length;
+        if (has(node, 'pattern') && !new RegExp(node.pattern).test(inst)) local.push(SV + ptr);
+        if (has(node, 'minLength') && len < node.minLength) local.push(SV + ptr);
+        if (has(node, 'maxLength') && len > node.maxLength) local.push(SV + ptr);
+      }
+      if (typeof inst === 'number' && Number.isInteger(inst)) {
+        if (has(node, 'minimum') && inst < node.minimum) local.push(SV + ptr);
+        if (has(node, 'maximum') && inst > node.maximum) local.push(SV + ptr);
+      }
+      if (isObj(inst)) {
+        (node.required || []).forEach(function (k) { if (!has(inst, k)) local.push(SV + ptrJoin(ptr, k)); });
+        const props = node.properties || {};
+        Object.keys(inst).forEach(function (k) {
+          if (has(props, k)) local = local.concat(schemaErrors(root, props[k], inst[k], ptrJoin(ptr, k)));
+          else if (has(node, 'additionalProperties')) {
+            const ap = node.additionalProperties;
+            if (ap === false) local.push(SV + ptrJoin(ptr, k));
+            else if (isObj(ap)) local = local.concat(schemaErrors(root, ap, inst[k], ptrJoin(ptr, k)));
+          }
+          if (has(node, 'propertyNames')) local = local.concat(schemaErrors(root, node.propertyNames, k, ptrJoin(ptr, k)));
+        });
+      }
+      if (Array.isArray(inst)) {
+        if (has(node, 'minItems') && inst.length < node.minItems) local.push(SV + ptr);
+        if (has(node, 'items')) inst.forEach(function (v, i) { local = local.concat(schemaErrors(root, node.items, v, ptrJoin(ptr, i))); });
+      }
+      if (has(node, 'if') && schemaErrors(root, node['if'], inst, ptr).length === 0 && has(node, 'then')) {
+        local = local.concat(schemaErrors(root, node.then, inst, ptr));
+      }
+    }
+    const code = node['x-error-code'];
+    if (code) local = local.map(function (e) { return e.indexOf(SV) === 0 ? code + ':' + ptr : e; });
+    return uniq(local);
+  }
+
+  function recordTimestamps(body) {
+    const out = [];
+    const tl = body.timeline || {};
+    ['requirements_received_at', 'authorization_presented_at', 'decision_issued_at'].forEach(function (k) {
+      if (has(tl, k)) out.push(['/timeline/' + k, tl[k]]);
+    });
+    const auth = (body.payment || {}).authorization || {};
+    ['valid_after', 'valid_before'].forEach(function (k) { if (has(auth, k)) out.push(['/payment/authorization/' + k, auth[k]]); });
+    (body.checks || []).forEach(function (c, i) { if (has(c, 'ran_at')) out.push(['/checks/' + i + '/ran_at', c.ran_at]); });
+    (body.links || []).forEach(function (l, i) { if (has(l, 'expires_at')) out.push(['/links/' + i + '/expires_at', l.expires_at]); });
+    return out;
+  }
+  function recordTimestampErrors(body) {
+    return recordTimestamps(body).filter(function (p) { return tsMs(p[1]) === null; }).map(function (p) { return 'BAD_TIMESTAMP:' + p[0]; });
+  }
+
+  function keysetErrors(keyset) {
+    let errs = schemaErrors(KEYSET_SCHEMA, KEYSET_SCHEMA, keyset).map(function (e) {
+      const i = e.indexOf(':');
+      return e.slice(0, i) + ':keyset#' + e.slice(i + 1);
+    });
+    if (errs.length) return errs;
+    if (keyset.published_at !== undefined && keyset.published_at !== null && tsMs(keyset.published_at) === null) errs.push('BAD_TIMESTAMP:keyset#/published_at');
+    const seen = {};
+    keyset.keys.forEach(function (k, i) {
+      ['valid_from', 'valid_until', 'revoked_at'].forEach(function (f) {
+        if (has(k, f) && tsMs(k[f]) === null) errs.push('BAD_TIMESTAMP:keyset#/keys/' + i + '/' + f);
+      });
+      if (has(seen, k.key_id)) errs.push('DUPLICATE_KEY_ID:' + k.key_id);
+      seen[k.key_id] = true;
+    });
+    if (errs.length) return uniq(errs);
+    keyset.keys.forEach(function (k, i) {
+      if (tsMs(k.valid_until) <= tsMs(k.valid_from) || (has(k, 'revoked_at') && tsMs(k.revoked_at) < tsMs(k.valid_from))) {
+        errs.push('BAD_KEY_WINDOW:keyset#/keys/' + i);
+      }
+    });
+    return errs;
+  }
+
+  function pointerExists(doc, ptr) {
+    let cur = doc;
+    const toks = ptr.split('/').slice(1);
+    for (const raw of toks) {
+      const tok = raw.replace(/~1/g, '/').replace(/~0/g, '~');
+      if (isObj(cur) && has(cur, tok)) cur = cur[tok];
+      else if (Array.isArray(cur) && /^(0|[1-9][0-9]*)$/.test(tok) && +tok < cur.length) cur = cur[+tok];
+      else return false;
+    }
+    return true;
+  }
+
+  function hexToBytes(hex) {
+    const h = String(hex).replace(/^0x/, '');
+    if (!/^([0-9a-fA-F]{2})*$/.test(h)) throw new Error('bad hex');
+    const out = new Uint8Array(h.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(h.substr(i * 2, 2), 16);
+    return out;
+  }
+
+  function result(status, rec, digest, errors, warnings, info, extra) {
+    const sig = isObj(rec) && isObj(rec.signature) ? rec.signature : {};
+    return Object.assign({
+      ok: status === 'VALID',
+      status: status,
+      schemaVersion: isObj(rec) ? rec.schema_version : undefined,
       sha256: digest,
-      embeddedSha256: sig.sha256 || '',
-      sha256Match: !sig.sha256 || sig.sha256 === digest,
       keyId: sig.key_id || '',
       alg: sig.alg || '',
-      canonicalization: sig.canonicalization || '',
-      exampleData: rec.example_data === true,
-      method: method,
-      fallbackError: lastError ? String(lastError) : null
-    };
+      exampleData: isObj(rec) && rec.example_data === true,
+      method: 'none',
+      errors: uniq(errors), warnings: warnings || [], info: info || []
+    }, extra || {});
+  }
+
+  // Legacy 0.2-draft (opt-in, SPEC §11.1): closed v0.2 schema, v1.0 key rules, signature.
+  async function verifyLegacyV02(rec, opts) {
+    let errors = numberErrors(rec);
+    if (errors.length) return result('INVALID', rec, null, errors);
+    errors = schemaErrors(LEGACY_V02_SCHEMA, LEGACY_V02_SCHEMA, rec);
+    if (!errors.length && tsMs(rec.checkedAt) === null) errors = ['BAD_TIMESTAMP:/checkedAt'];
+    if (errors.length) return result('INVALID', rec, null, errors);
+    const warnings = [];
+    const sig = rec.signature;
+    const keyId = sig.key_id;
+    const issued = tsMs(rec.checkedAt);
+    let pem = null;
+    if (opts.keyset) {
+      const kerr = keysetErrors(opts.keyset);
+      if (kerr.length) return result('INVALID', rec, null, kerr);
+      const entry = opts.keyset.keys.find(function (k) { return k.key_id === keyId; });
+      if (!entry) {
+        errors.push('UNKNOWN_KEY'); // never fall back to the demo key when a keyset is given
+      } else {
+        pem = entry.public_key_pem;
+        if (!(tsMs(entry.valid_from) <= issued && issued < tsMs(entry.valid_until))) errors.push('KEY_NOT_VALID_AT_ISSUANCE');
+        if (entry.status === 'revoked') errors.push('KEY_REVOKED'); // any reason: no trustworthy issuance time in v0.2
+      }
+    } else if (opts.pem) {
+      pem = opts.pem;
+      warnings.push('NO_KEYSET_VALIDITY_NOT_CHECKED');
+    } else {
+      pem = DEMO_PUB_PEM;
+      warnings.push('DEMO_KEY_ASSUMED');
+    }
+    const body = JSON.parse(JSON.stringify(rec));
+    delete body.signature;
+    const message = canonicalizeBytes(body);
+    const digest = await sha256Hex(message);
+    let sigOk = false, method = 'none';
+    if (pem) {
+      const sigBytes = decodeSig(sig.sig_base64);
+      if (sigBytes) {
+        const r = await ed25519Verify(message, sigBytes, pem, opts);
+        sigOk = !!r.ok; method = r.method;
+      }
+      if (!sigOk) errors.unshift('BAD_SIGNATURE');
+    }
+    if (sig.sha256 && sig.sha256 !== digest) warnings.push('EMBEDDED_SHA256_MISMATCH');
+    const valid = sigOk && errors.length === 0;
+    if (valid) warnings.push('LEGACY_V02_SIGNATURE_ONLY');
+    return result(valid ? 'VALID' : 'INVALID', rec, digest, errors, warnings, [],
+      { method: method, embeddedSha256: sig.sha256 || '', sha256Match: !sig.sha256 || sig.sha256 === digest });
+  }
+
+  // record field -> x402 v2 PaymentRequirements field (case-insensitive compare?) ; all MUST be present (M5)
+  const BINDING_FIELDS = [['payee', 'payTo', true], ['amount_atomic', 'amount', false], ['network', 'network', false],
+    ['asset', 'asset', true], ['scheme', 'scheme', false]];
+
+  async function verifyV10(rec, opts) {
+    // step 0: numbers, schema, timestamps (SPEC §11)
+    let errors = numberErrors(rec);
+    if (errors.length) return result('INVALID', rec, null, errors);
+    errors = schemaErrors(RECORD_SCHEMA, RECORD_SCHEMA, rec);
+    if (!errors.length) errors = recordTimestampErrors(rec);
+    if (errors.length) return result('INVALID', rec, null, errors);
+    const warnings = [], info = [];
+    const body = JSON.parse(JSON.stringify(rec));
+    const sig = body.signature;
+    delete body.signature;
+    const message = canonicalizeBytes(body);
+    const digest = await sha256Hex(message);
+    const keyId = sig.key_id;
+    const issued = tsMs(body.timeline.decision_issued_at);
+    if (body.signing_key.key_id !== keyId) errors.push('KEY_ID_MISMATCH');
+
+    // step 1: key
+    let pem = opts.pem || null;
+    const keyset = opts.keyset || null;
+    if (keyset) {
+      const kerr = keysetErrors(keyset);
+      if (kerr.length) return result('INVALID', rec, null, errors.concat(kerr));
+      const entry = keyset.keys.find(function (k) { return k.key_id === keyId; });
+      pem = null;
+      if (!entry) {
+        errors.push('UNKNOWN_KEY');
+      } else {
+        pem = entry.public_key_pem;
+        if (!(tsMs(entry.valid_from) <= issued && issued < tsMs(entry.valid_until))) errors.push('KEY_NOT_VALID_AT_ISSUANCE');
+        if (entry.status === 'revoked') {
+          if (entry.revocation_reason === 'superseded' && issued < tsMs(entry.revoked_at)) warnings.push('KEY_SUPERSEDED_AFTER_ISSUANCE');
+          else errors.push('KEY_REVOKED');
+        }
+      }
+    } else if (!pem) {
+      errors.push('NO_KEY');
+    } else {
+      warnings.push('NO_KEYSET_VALIDITY_NOT_CHECKED');
+    }
+
+    // step 2: signature
+    let sigOk = false, method = 'none';
+    if (pem) {
+      const sigBytes = decodeSig(sig.sig_base64);
+      if (sigBytes) {
+        const r = await ed25519Verify(message, sigBytes, pem, opts);
+        sigOk = !!r.ok; method = r.method;
+      }
+      if (!sigOk) errors.unshift('BAD_SIGNATURE');
+    }
+
+    // step 3: checks, evidence, ceilings
+    for (const c of body.checks) {
+      const cid = c.id;
+      if (CHECK_REGISTRY.indexOf(cid) < 0) info.push((cid.indexOf('x-') === 0 ? 'CUSTOM' : 'UNKNOWN') + '_CHECK_ID:' + cid);
+      if (has(c, 'evidence')) {
+        if (c.evidence_sha256.hex !== await sha256Hex(canonicalizeBytes(c.evidence))) errors.push('EVIDENCE_HASH_MISMATCH:' + cid);
+      } else {
+        info.push('EVIDENCE_WITHHELD:' + cid);
+      }
+    }
+    for (const ptr of Object.keys(body.field_evidence_ceilings)) {
+      if (!pointerExists(rec, ptr)) errors.push('UNRESOLVED_POINTER:' + ptr);
+    }
+
+    // step 4: timeline, SPEC §5
+    const tl = body.timeline, auth = body.payment.authorization;
+    const received = tsMs(tl.requirements_received_at), presented = tsMs(tl.authorization_presented_at);
+    for (const c of body.checks) {
+      const ran = tsMs(c.ran_at);
+      if (ran < presented || ran > issued) errors.push('CHECK_OUTSIDE_DECISION_WINDOW:' + c.id);
+    }
+    if (received > presented || presented > issued) errors.push('TIMELINE_OUT_OF_ORDER');
+    if (issued >= tsMs(auth.valid_before)) errors.push('DECISION_AFTER_AUTHORIZATION_EXPIRY');
+    if (has(auth, 'valid_after') && tsMs(auth.valid_after) >= tsMs(auth.valid_before)) errors.push('AUTHORIZATION_WINDOW_INVALID');
+
+    // step 5a: payment binding (optional raw inputs), x402 v2
+    if (opts.bindingInputs !== undefined && opts.bindingInputs !== null) {
+      const before = errors.length;
+      const p = body.payment;
+      const bi = isObj(opts.bindingInputs) ? opts.bindingInputs : {};
+      const srcs = { 'jcs(payment_requirements)': 'payment_requirements', 'jcs(resource_request)': 'resource_request' };
+      for (const t of [p.authorization.nonce_sha256, p.payment_requirements_sha256, p.request_sha256]) {
+        const inp = t.input;
+        let bytes;
+        if (inp === 'eip3009-nonce-bytes32') {
+          if (typeof bi.authorization_nonce !== 'string' || !NONCE_RE.test(bi.authorization_nonce)) { errors.push('BAD_NONCE'); continue; }
+          bytes = hexToBytes(bi.authorization_nonce.slice(2));
+        } else {
+          if (!isObj(bi[srcs[inp]])) { errors.push('BINDING_FIELD_MISSING:' + srcs[inp]); continue; }
+          bytes = canonicalizeBytes(bi[srcs[inp]]);
+        }
+        if ((await sha256Hex(bytes)) !== t.hex) errors.push('BINDING_HASH_MISMATCH:' + inp);
+      }
+      const pr = bi.payment_requirements;
+      if (isObj(pr)) {
+        const v1 = has(pr, 'maxAmountRequired') && !has(pr, 'amount');
+        if (v1) errors.push('UNSUPPORTED_X402_V1_REQUIREMENTS'); // map to v2 first, SPEC §4
+        BINDING_FIELDS.forEach(function (f) {
+          const field = f[0], rk = f[1], ci = f[2];
+          if (!has(pr, rk)) {
+            if (!(v1 && rk === 'amount')) errors.push('BINDING_FIELD_MISSING:' + rk);
+            return;
+          }
+          const a = pr[rk], b = p[field];
+          if (typeof a !== 'string' || (ci ? a.toLowerCase() !== b.toLowerCase() : a !== b)) errors.push('BINDING_FIELD_MISMATCH:' + field);
+        });
+      }
+      const res = bi.resource;
+      if (res !== undefined && res !== null && (!isObj(res) || res.url !== p.resource)) errors.push('BINDING_FIELD_MISMATCH:resource');
+      if (errors.length === before) info.push('BINDING_RECOMPUTED_OK');
+    }
+
+    // step 5b: links (B4: linked-record recomputation, as in verify.py --linked)
+    const linked = opts.linked || [];
+    const linkedHashes = [];
+    for (const l of linked) linkedHashes.push(await sha256Hex(canonicalizeBytes(l)));
+    for (const l of body.links) {
+      if (has(l, 'expires_at') && tsMs(l.expires_at) <= issued) warnings.push('LINK_EXPIRED_AT_ISSUANCE:' + l.rel);
+      if (linked.length) {
+        if (l.record_sha256.input !== 'raw(linked-record)' && linkedHashes.indexOf(l.record_sha256.hex) >= 0) info.push('LINK_RECOMPUTED_OK:' + l.rel);
+        else warnings.push('LINK_NOT_SUPPLIED_OR_MISMATCH:' + l.rel);
+      }
+    }
+
+    errors = uniq(errors);
+    return result(sigOk && errors.length === 0 ? 'VALID' : 'INVALID', rec, digest, errors, warnings, info, { method: method });
+  }
+
+  // Prefix the pointer part of each error with <label>#, as _label in verify.py.
+  function labelErrors(errors, label) {
+    return errors.map(function (e) {
+      const i = e.indexOf(':');
+      return i < 0 ? e + ':' + label + '#' : e.slice(0, i) + ':' + label + '#' + e.slice(i + 1);
+    });
+  }
+
+  // verifyRecord(record, options). Pass the record, keysetText, bindingInputs and linked as raw
+  // JSON text: only text can be checked for duplicate members (DUPLICATE_MEMBER) and number
+  // spelling (BAD_NUMBER). A parsed object is still verified, but the result then carries the
+  // warning PARSED_INPUT:<record|keyset|binding_inputs|linked[i]>. linked may be an array of
+  // texts/objects, or one text holding an array or an object.
+  // options: { pem, keyset, keysetText, keysetSha256, bindingInputs, linked, allowLegacyV02,
+  //            forceTweetnacl, forceWebCrypto }
+  // (legacy call verifyRecord(record, pem, options) still works). Returns status VALID or INVALID.
+  async function verifyRecord(record, pemOrOpts, legacyOpts) {
+    const opts = (typeof pemOrOpts === 'string' || pemOrOpts == null)
+      ? Object.assign({}, legacyOpts || {}, { pem: pemOrOpts })
+      : Object.assign({}, pemOrOpts);
+    const notes = [];
+    function fin(r) { r.warnings = (r.warnings || []).concat(notes); return r; }
+    if (typeof record !== 'string') notes.push('PARSED_INPUT:record');
+    const parsed = parseJsonText(typeof record === 'string' ? record : JSON.stringify(record));
+    const rec = parsed.obj;
+    if (parsed.errors.length) return fin(result('INVALID', rec, null, parsed.errors));
+    if (typeof opts.keysetText === 'string') {
+      // B4: SHA-256 anchor over the exact keyset bytes, as verify.py --keyset-sha256
+      if (opts.keysetSha256 && (await sha256Hex(new TextEncoder().encode(opts.keysetText))) !== String(opts.keysetSha256).toLowerCase()) {
+        return fin(result('INVALID', rec, null, ['KEYSET_SHA256_MISMATCH']));
+      }
+      const kp = parseJsonText(opts.keysetText);
+      if (kp.errors.length) return fin(result('INVALID', rec, null, labelErrors(kp.errors, 'keyset')));
+      opts.keyset = kp.obj;
+    } else if (opts.keysetSha256) {
+      throw new Error('keysetSha256 needs keysetText (the anchor is over the exact file bytes)');
+    } else if (opts.keyset) {
+      notes.push('PARSED_INPUT:keyset');
+    }
+    let aux = [];
+    if (typeof opts.bindingInputs === 'string') {
+      const bp = parseJsonText(opts.bindingInputs);
+      aux = aux.concat(labelErrors(bp.errors, 'binding_inputs'));
+      opts.bindingInputs = bp.obj;
+    } else if (opts.bindingInputs !== undefined && opts.bindingInputs !== null) {
+      notes.push('PARSED_INPUT:binding_inputs');
+    }
+    if (typeof opts.linked === 'string') {
+      const lp = parseJsonText(opts.linked);
+      aux = aux.concat(labelErrors(lp.errors, 'linked'));
+      opts.linked = Array.isArray(lp.obj) ? lp.obj : [lp.obj];
+    } else if (Array.isArray(opts.linked)) {
+      opts.linked = opts.linked.map(function (item, i) {
+        if (typeof item === 'string') {
+          const lp = parseJsonText(item);
+          aux = aux.concat(labelErrors(lp.errors, 'linked[' + i + ']'));
+          return lp.obj;
+        }
+        notes.push('PARSED_INPUT:linked[' + i + ']');
+        return item;
+      });
+    }
+    if (aux.length) return fin(result('INVALID', rec, null, aux));
+    if (!isObj(rec) || !isObj(rec.signature)) return fin(result('INVALID', rec, null, ['BAD_SIGNATURE_OBJECT']));
+    const v = rec.schema_version;
+    if (v === SCHEMA_VERSION) return fin(await verifyV10(rec, opts));
+    if (v === LEGACY_V02) {
+      if (!opts.allowLegacyV02) return fin(result('INVALID', rec, null, ['LEGACY_V02_NOT_ENABLED']));
+      return fin(await verifyLegacyV02(rec, opts));
+    }
+    return fin(result('INVALID', rec, null, ['UNSUPPORTED_SCHEMA_VERSION']));
   }
 
   return {
     DEMO_PUB_PEM: DEMO_PUB_PEM,
+    DEMO_KEYSET: DEMO_KEYSET,
+    DEMO_V10: DEMO_V10,
+    DEMO_BINDING_INPUTS: DEMO_BINDING_INPUTS,
+    DEMO_LINKED: DEMO_LINKED,
+    RECORD_SCHEMA: RECORD_SCHEMA,
+    KEYSET_SCHEMA: KEYSET_SCHEMA,
     DEMO_RECORD_VALID: DEMO_RECORD_VALID,
     DEMO_RECORD_TAMPERED: DEMO_RECORD_TAMPERED,
     canonicalizeToString: canonicalizeToString,
     canonicalizeBytes: canonicalizeBytes,
     sha256Hex: sha256Hex,
+    schemaErrors: schemaErrors,
     verifyRecord: verifyRecord,
+    scanJson: scanJson,
+    LEGACY_V02_SCHEMA: LEGACY_V02_SCHEMA,
     pemToDer: pemToDer,
     spkiToRawEd25519: spkiToRawEd25519
   };
@@ -557,21 +1995,46 @@ if (typeof globalThis !== 'undefined') {
 }
 
 (function bindUi() {
-  if (typeof document === 'undefined' || !document.getElementById) return;
+  if (typeof document === 'undefined') return;
   const recordEl = document.getElementById('record');
   const pubkeyEl = document.getElementById('pubkey');
   const resultEl = document.getElementById('result');
-  if (!recordEl || !pubkeyEl || !resultEl) return;
+  const keysetEl = document.getElementById('keyset');
+  const anchorEl = document.getElementById('anchor');
+  const bindingEl = document.getElementById('binding');
+  const linkedEl = document.getElementById('linked');
+  if (!recordEl) return;
+  const allowLegacyEl = document.getElementById('allow-legacy');
+  if (keysetEl && !keysetEl.value) keysetEl.value = JSON.stringify(AgentTrustVerifier.DEMO_KEYSET, null, 2) + '\n';
 
+  function esc(x) {
+    return String(x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
   function pretty(obj) {
     return JSON.stringify(obj, null, 2);
   }
-
+  [['load-v10-valid', 'valid'], ['load-v10-tampered', 'tampered'], ['load-v10-wrong-key', 'wrong_key'], ['load-v10-expired-key', 'expired_key']].forEach(function (pair) {
+    const b = document.getElementById(pair[0]);
+    if (b) b.addEventListener('click', function () {
+      recordEl.value = pretty(AgentTrustVerifier.DEMO_V10[pair[1]]);
+      if (keysetEl) keysetEl.value = JSON.stringify(AgentTrustVerifier.DEMO_KEYSET, null, 2) + '\n';
+      if (bindingEl) bindingEl.value = pretty(AgentTrustVerifier.DEMO_BINDING_INPUTS);
+      if (linkedEl) linkedEl.value = pretty(AgentTrustVerifier.DEMO_LINKED);
+    });
+  });
+  if (!recordEl.value.trim()) {
+    recordEl.value = pretty(AgentTrustVerifier.DEMO_V10.valid);
+    if (bindingEl) bindingEl.value = pretty(AgentTrustVerifier.DEMO_BINDING_INPUTS);
+    if (linkedEl) linkedEl.value = pretty(AgentTrustVerifier.DEMO_LINKED);
+  }
+  // The legacy examples tick the opt-in box: a 0.2-draft record is checked only when it is ticked.
   document.getElementById('load-valid').addEventListener('click', function () {
     recordEl.value = pretty(AgentTrustVerifier.DEMO_RECORD_VALID);
+    if (allowLegacyEl) allowLegacyEl.checked = true;
   });
   document.getElementById('load-tampered').addEventListener('click', function () {
     recordEl.value = pretty(AgentTrustVerifier.DEMO_RECORD_TAMPERED);
+    if (allowLegacyEl) allowLegacyEl.checked = true;
   });
   document.getElementById('verify').addEventListener('click', function () {
     runVerify();
@@ -581,29 +2044,39 @@ if (typeof globalThis !== 'undefined') {
     resultEl.className = '';
     resultEl.innerHTML = '<p class="meta">Checking…</p>';
     try {
-      const result = await AgentTrustVerifier.verifyRecord(recordEl.value, pubkeyEl.value);
+      const opts = { pem: pubkeyEl.value.trim() || null, allowLegacyV02: !!(allowLegacyEl && allowLegacyEl.checked) };
+      if (keysetEl && keysetEl.value.trim()) opts.keysetText = keysetEl.value;
+      if (anchorEl && anchorEl.value.trim()) opts.keysetSha256 = anchorEl.value.trim();
+      // raw text, so the strict checks (duplicate members, numbers, BAD_JSON) apply to every field
+      if (bindingEl && bindingEl.value.trim()) opts.bindingInputs = bindingEl.value;
+      if (linkedEl && linkedEl.value.trim()) opts.linked = linkedEl.value;
+      const result = await AgentTrustVerifier.verifyRecord(recordEl.value, opts);
       resultEl.className = result.ok ? 'ok' : 'bad';
       const lines = [];
-      lines.push('<p class="status">' + result.status + '</p>');
+      lines.push('<p class="status" id="result-status">' + result.status + '</p>');
       if (result.exampleData) {
         lines.push('<p class="meta">This record is marked example_data: true (illustration, not a live decision).</p>');
       }
-      lines.push('<p class="meta">sha256 of canonical bytes: ' + result.sha256 + '</p>');
+      if (result.sha256) lines.push('<p class="meta">sha256 of the signed bytes: ' + result.sha256 + '</p>');
       if (result.embeddedSha256 && !result.sha256Match) {
-        lines.push('<p class="meta">embedded sha256 does not match: ' + result.embeddedSha256 + '</p>');
+        lines.push('<p class="meta">embedded sha256 does not match: ' + esc(result.embeddedSha256) + '</p>');
       }
       if (result.alg || result.keyId) {
         lines.push('<p class="meta">' +
-          (result.alg ? ('alg: ' + result.alg) : '') +
+          (result.alg ? ('alg: ' + esc(result.alg)) : '') +
           (result.alg && result.keyId ? ' · ' : '') +
-          (result.keyId ? ('key id: ' + result.keyId) : '') +
-          ' · method: ' + result.method + '</p>');
+          (result.keyId ? ('key id: ' + esc(result.keyId)) : '') +
+          ' · method: ' + esc(result.method) + '</p>');
       }
+      if (result.schemaVersion) lines.push('<p class="meta">schema_version: ' + esc(result.schemaVersion) + '</p>');
+      ['errors', 'warnings', 'info'].forEach(function (k) {
+        if (result[k] && result[k].length) lines.push('<p class="meta" id="result-' + k + '">' + k + ': ' + esc(result[k].join(', ')) + '</p>');
+      });
       resultEl.innerHTML = lines.join('');
     } catch (err) {
       resultEl.className = 'bad';
-      resultEl.innerHTML = '<p class="status">INVALID</p><p class="error">' +
-        String(err && err.message ? err.message : err) + '</p>';
+      resultEl.innerHTML = '<p class="status" id="result-status">INVALID</p><p class="error">' +
+        esc(err && err.message ? err.message : err) + '</p>';
     }
   }
 })();

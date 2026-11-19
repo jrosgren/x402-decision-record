@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jrosgren/x402-decision-record/schema/decision-record.v1.0.schema.json",
+  "title": "x402 pre-payment decision record, v1.0",
+  "description": "Signed record of a check made before an x402 payment. See SPEC.md. Verifiers MUST validate a record against this schema before any other step (SPEC §11 step 0). The keyword x-error-code is an annotation naming the error code a verifier reports when that subschema fails; validators that do not know it ignore it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "record_id", "issuer", "signing_key", "payment", "timeline", "checks", "decision", "field_evidence_ceilings", "links", "not_covered", "signature"],
+  "properties": {
+    "schema_version": {"const": "1.0", "x-error-code": "UNSUPPORTED_SCHEMA_VERSION"},
+    "record_type": {"const": "x402-pre-payment-decision"},
+    "record_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "example_data": {"type": "boolean", "description": "true for illustrations and test vectors. Production records omit it or set false."},
+    "issuer": {"type": "string", "minLength": 1, "format": "uri"},
+    "signing_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key_id", "keyset_uri"],
+      "properties": {
+        "key_id": {"type": "string", "minLength": 1},
+        "keyset_uri": {"type": "string", "minLength": 1, "format": "uri", "description": "Primary keyset location; v1.0.0: https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json"}
+      }
+    },
+    "payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402_version", "scheme", "network", "asset", "amount_atomic", "payer", "payee", "resource", "authorization", "payment_requirements_sha256", "request_sha256", "tx_hash"],
+      "properties": {
+        "x402_version": {"const": 2, "description": "v1.0 binds to x402 protocol v2 PaymentRequirements. x402 v1 requirements must be mapped to v2 first (SPEC §4)."},
+        "scheme": {"type": "string", "minLength": 1},
+        "network": {"type": "string", "pattern": "^eip155:[1-9][0-9]*$", "x-error-code": "UNSUPPORTED_NETWORK", "description": "CAIP-2 chain id. v1.0 covers EVM chains only, e.g. eip155:8453 (Base). Non-EVM is deferred to v1.1."},
+        "asset": {"type": "string", "minLength": 1},
+        "asset_symbol": {"type": "string"},
+        "asset_decimals": {"type": "integer", "minimum": 0, "maximum": 255},
+        "amount_atomic": {"$ref": "#/$defs/uintString"},
+        "payer": {"type": "string", "minLength": 1},
+        "payee": {"type": "string", "minLength": 1},
+        "resource": {"type": "string", "minLength": 1, "format": "uri"},
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["nonce_sha256", "valid_before"],
+          "properties": {
+            "nonce_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "eip3009-nonce-bytes32"}}},
+            "valid_after": {"$ref": "#/$defs/timestamp"},
+            "valid_before": {"$ref": "#/$defs/timestamp"}
+          }
+        },
+        "payment_requirements_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(payment_requirements)"}}},
+        "request_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(resource_request)"}}},
+        "tx_hash": {"type": ["string", "null"], "description": "null when the record is signed before settlement (the normal case)."}
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirements_received_at", "authorization_presented_at", "decision_issued_at"],
+      "properties": {
+        "requirements_received_at": {"$ref": "#/$defs/timestamp"},
+        "authorization_presented_at": {"$ref": "#/$defs/timestamp"},
+        "decision_issued_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "result", "ran_at", "evidence_ceiling", "evidence_sha256"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^(x-[a-z0-9-]+\\.)?[a-z0-9_]+(\\.[a-z0-9_]+)*$", "description": "Registered ids: endpoint.health, terms.price_vs_listing, payto.change, payee.wallet_risk. Custom ids use the prefix x-<issuer>. Verifiers MUST ignore unknown ids rather than reject the record."},
+          "result": {"enum": ["pass", "warn", "fail", "error", "skipped"]},
+          "ran_at": {"$ref": "#/$defs/timestamp"},
+          "evidence_ceiling": {"$ref": "#/$defs/ceiling"},
+          "evidence_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"const": "jcs(evidence)"}}},
+          "evidence": {"type": "object", "description": "Optional inline evidence. If present, its JCS hash must equal evidence_sha256.hex."}
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "score", "reason_codes", "policy_id"],
+      "properties": {
+        "verdict": {"enum": ["allow", "warn", "deny"]},
+        "score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "level": {"enum": ["low", "medium", "high"]},
+        "reason_codes": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9_]+$"}},
+        "policy_id": {"type": "string", "minLength": 1},
+        "payer_agent_id": {"type": "string"}
+      }
+    },
+    "field_evidence_ceilings": {
+      "type": "object",
+      "propertyNames": {"pattern": "^(/[^/]+)+$"},
+      "additionalProperties": {"$ref": "#/$defs/ceiling"}
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rel", "issuer", "record_sha256", "evidence_ceiling"],
+        "properties": {
+          "rel": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+          "issuer": {"type": "string", "minLength": 1, "format": "uri"},
+          "scope": {"type": "string"},
+          "expires_at": {"$ref": "#/$defs/timestamp"},
+          "uri": {"type": "string", "format": "uri"},
+          "record_sha256": {"$ref": "#/$defs/hash", "properties": {"input": {"enum": ["jcs(record)", "jcs(linked-record)", "raw(linked-record)"]}}},
+          "evidence_ceiling": {"$ref": "#/$defs/ceiling"}
+        },
+        "if": {"properties": {"rel": {"const": "seller_attestation"}}, "required": ["rel"]},
+        "then": {"required": ["scope", "expires_at"]}
+      }
+    },
+    "not_covered": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "text"],
+        "properties": {
+          "code": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+          "text": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "x-error-code": "BAD_SIGNATURE_OBJECT",
+      "description": "Exactly these three members. No canonicalization or sha256 member in v1.0 (SPEC §3): unsigned extra members would let anyone change jcs(record).",
+      "additionalProperties": false,
+      "required": ["alg", "key_id", "sig_base64"],
+      "properties": {
+        "alg": {"const": "Ed25519"},
+        "key_id": {"type": "string", "minLength": 1},
+        "sig_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$", "x-error-code": "NONCANONICAL_SIGNATURE", "description": "Canonical standard base64 with padding of the 64-byte signature: the unused low bits of the last data character are zero."}
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$", "x-error-code": "BAD_TIMESTAMP", "description": "RFC 3339 in UTC with Z, whole seconds or exactly 3 decimals (milliseconds). Must also be a real calendar time."},
+    "uintString": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+    "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ceiling": {"enum": ["recomputable_from_chain", "recomputable_from_client_view", "issuer_assertion"]},
+    "hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "input", "hex"],
+      "properties": {
+        "alg": {"const": "sha-256"},
+        "input": {"type": "string"},
+        "hex": {"$ref": "#/$defs/hex64"}
+      }
+    }
+  }
+}

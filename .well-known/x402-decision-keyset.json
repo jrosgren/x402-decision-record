@@ -1,0 +1,18 @@
+{
+  "_note": "EXAMPLE / DEMO keyset. The demo key signs example records only, never production decisions.",
+  "keyset_version": "1.0",
+  "example_data": true,
+  "issuer": "https://trypolkulab.com",
+  "published_at": "2026-11-19T00:00:00Z",
+  "keys": [
+    {
+      "key_id": "polkulab-demo-2026-11",
+      "alg": "Ed25519",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAc2KxBQXTPJ7lQqzL+BDfP2oTvMocJtn1Nm7XsSY/fo0=\n-----END PUBLIC KEY-----\n",
+      "valid_from": "2026-11-01T00:00:00Z",
+      "valid_until": "2027-01-01T00:00:00Z",
+      "status": "active",
+      "purpose": "demo signing of example records only"
+    }
+  ]
+}

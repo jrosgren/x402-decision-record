@@ -1,0 +1,27 @@
+{
+  "_note": "EXAMPLE DATA ONLY. Negative binding inputs: a different 32-byte nonce.",
+  "authorization_nonce": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "x402_version": 2,
+  "payment_requirements": {
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "amount": "4500000",
+    "asset": "0x0000000000000000000000000000000000000003",
+    "payTo": "0x0000000000000000000000000000000000000002",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+      "name": "USD Coin (example)",
+      "version": "2"
+    }
+  },
+  "resource": {
+    "url": "https://api.example-seller.test/v1/report",
+    "description": "EXAMPLE resource (example data)",
+    "mimeType": "application/json"
+  },
+  "resource_request": {
+    "method": "GET",
+    "url": "https://api.example-seller.test/v1/report?id=example-123",
+    "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
