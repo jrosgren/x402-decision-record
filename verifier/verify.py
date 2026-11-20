@@ -33,7 +33,9 @@ v1.0 steps, all offline (this script makes no network calls), SPEC §11:
      ids are info only), field_evidence_ceilings pointers resolve;
   4. timeline order;
   5. optional: payment binding from raw inputs (x402 v2 PaymentRequirements),
-     linked record hashes.
+     linked record hashes. When the inputs are not supplied, the result says so
+     as info (BINDING_RECOMPUTATION_SKIPPED, LINK_RECOMPUTATION_SKIPPED:<rel>;
+     added in v1.0.1, never changes VALID/INVALID).
 
 Requires the rfc8785 package (pip install rfc8785). Ed25519 uses the
 cryptography package if installed, else OpenSSL 3.
@@ -42,6 +44,8 @@ EXAMPLE DATA: the sample records shipped with this script are illustrations,
 not live Payvetted decisions. Made by Aron, Polkulab (Payvetted).
 """
 from __future__ import annotations
+
+VERIFIER_VERSION = "1.0.1"  # release of this reference verifier (record schema_version stays "1.0")
 
 import argparse
 import base64
@@ -656,6 +660,9 @@ def verify_v10(rec: dict, keyset: dict | None = None, pub_pem: str | None = None
             errors.append("BINDING_FIELD_MISMATCH:resource")
         if len(errors) == before:
             info.append("BINDING_RECOMPUTED_OK")
+    else:
+        # v1.0.1: say so when the binding was not recomputed (info only, never changes the status)
+        info.append("BINDING_RECOMPUTATION_SKIPPED")
 
     # step 5b: links
     linked_hashes = {sha256_hex(canonicalize(l)) for l in (linked or [])}
@@ -667,6 +674,9 @@ def verify_v10(rec: dict, keyset: dict | None = None, pub_pem: str | None = None
                 info.append(f"LINK_RECOMPUTED_OK:{l['rel']}")
             else:
                 warnings.append(f"LINK_NOT_SUPPLIED_OR_MISMATCH:{l['rel']}")
+        else:
+            # v1.0.1: no linked records supplied at all (info only, never changes the status)
+            info.append(f"LINK_RECOMPUTATION_SKIPPED:{l['rel']}")
 
     errors = _uniq(errors)
     return _result("VALID" if sig_ok and not errors else "INVALID", body["schema_version"], digest, key_id,
@@ -763,6 +773,7 @@ def main() -> None:
     ap.add_argument("--allow-legacy-v02", action="store_true",
                     help="also accept legacy 0.2-draft records (signature only, SPEC §11.1)")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--version", action="version", version=f"verify.py {VERIFIER_VERSION} (x402 decision record v1.0)")
     a = ap.parse_args()
     text = Path(a.record).read_bytes()
     try:

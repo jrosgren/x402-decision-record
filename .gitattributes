@@ -1,0 +1,16 @@
+# v1.0.1: line endings (SPEC §9.1, "Exact bytes").
+# Hashes and signatures in this repository are over exact bytes. The keyset anchor in
+# particular is the SHA-256 of the exact published bytes of
+# .well-known/x402-decision-keyset.json (LF line endings). With core.autocrlf=true a
+# Windows checkout would otherwise get CRLF and a different hash.
+
+# Text files: always LF in the working tree, whatever core.autocrlf says.
+* text=auto eol=lf
+
+# Byte-exact files: never convert line endings (keyset copies, records, test vectors,
+# expected results, schemas, the demo PUBLIC key, and the verifier page that Pages serves
+# and RELEASING.md compares byte for byte). Private keys are never in this repository.
+*.json -text
+*.pem -text
+verifier/verify.html -text
+.nojekyll -text
