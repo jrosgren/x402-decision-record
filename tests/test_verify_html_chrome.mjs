@@ -39,7 +39,7 @@ const harness = `<script>
         const r = await AgentTrustVerifier.verifyRecord(x.record, o);
         if (!mode.forceTweetnacl && r.method !== 'none') out.webcrypto = out.webcrypto || r.method;
         const ok = r.status === x.c.status && same(r.errors, x.c.errors) && same(r.warnings, x.c.warnings) &&
-          (x.c.info_includes || []).every(i => r.info.includes(i)) && (!x.c.sha256 || r.sha256 === x.c.sha256);
+          (x.c.info_includes || []).every(i => r.info.includes(i)) && (x.c.info_excludes || []).every(i => !r.info.includes(i)) && (!x.c.sha256 || r.sha256 === x.c.sha256);
         out.cases.push({ name: (mode.forceTweetnacl ? '[tweetnacl] ' : '[default] ') + x.c.name, ok, r: ok ? null : r });
       }
     }
@@ -61,6 +61,10 @@ const harness = `<script>
     await ui('duplicate member in the binding field', () => { $('load-v10-valid').click();
       $('binding').value = $('binding').value.replace('"amount": "4500000"', '"amount": "1", "amount": "4500000"'); }, 'INVALID');
     out.ui.push({ name: 'binding duplicate reported', ok: (($('result-errors') || {}).textContent || '').includes('DUPLICATE_MEMBER:binding_inputs#/payment_requirements/amount'), got: $('result').textContent });
+    await ui('v1.0 valid without binding or linked inputs', () => { $('load-v10-valid').click(); $('binding').value = ''; $('linked').value = ''; }, 'VALID');
+    out.ui.push({ name: 'skipped recomputations shown as info', ok: /BINDING_RECOMPUTATION_SKIPPED/.test(($('result-info') || {}).textContent || '') &&
+      /LINK_RECOMPUTATION_SKIPPED:seller_attestation/.test(($('result-info') || {}).textContent || '') && !$('result-warnings'), got: $('result').textContent });
+    out.ui.push({ name: 'page shows release v1.0.1', ok: /release v1\.0\.1/.test(document.body.textContent) && AgentTrustVerifier.VERIFIER_VERSION === '1.0.1', got: AgentTrustVerifier.VERIFIER_VERSION });
     await ui('v0.2 valid button', () => { $('load-valid').click(); $('binding').value = ''; $('linked').value = ''; }, 'VALID');
     await ui('v0.2 tampered button', () => { $('load-tampered').click(); }, 'INVALID');
     await ui('v0.2 valid without the legacy box', () => { $('load-valid').click(); $('allow-legacy').checked = false; }, 'INVALID');

@@ -1,6 +1,6 @@
 # x402 pre-payment decision record: v1.0
 
-**Status: v1.0, final.** Released as **v1.0.0 on 19.11.2026** (JSON Schema, changelog, test vectors and verifiers). This text was v0.3-draft (PR #1) and carries the fixes from the 19.11 reviews. Comments remain welcome in a GitHub issue or the x402 Slack thread; see §12.0 for how they are handled.
+**Status: v1.0, final.** Released as **v1.0.0 on 19.11.2026** (JSON Schema, changelog, test vectors and verifiers); current patch release **v1.0.1 (20.11.2026)**, additive only (§12.0.1). The record format is still `schema_version: "1.0"`. This text was v0.3-draft (PR #1) and carries the fixes from the 19.11 reviews. Comments remain welcome in a GitHub issue or the x402 Slack thread; see §12.0 for how they are handled.
 
 **EXAMPLE DATA ONLY.** All records, keys, wallets and URLs in this repository are made-up illustrations. The demo key `polkulab-demo-2026-11` signs example records only. Payvetted is pre-launch and issues no production records yet.
 
@@ -85,7 +85,7 @@ Timestamps: every timestamp in a record or keyset MUST match `^[0-9]{4}-[0-9]{2}
 - require `payTo`, `amount`, `network`, `asset` and `scheme` in the requirements (`BINDING_FIELD_MISSING:<field>`) and compare them with `payee`, `amount_atomic`, `network`, `asset` and `scheme` (`BINDING_FIELD_MISMATCH:<record field>`; addresses case-insensitively, the rest exactly);
 - if `resource` is supplied, compare `resource.url` with `payment.resource` (`BINDING_FIELD_MISMATCH:resource`).
 
-A verifier MUST NOT report the binding as recomputed (`BINDING_RECOMPUTED_OK`) when any of these failed or was skipped.
+A verifier MUST NOT report the binding as recomputed (`BINDING_RECOMPUTED_OK`) when any of these failed or was skipped. When no binding inputs are supplied at all, the reference verifiers (v1.0.1 and later) say so with the info code `BINDING_RECOMPUTATION_SKIPPED`, so a VALID result is never read as "binding checked" (§11.2).
 
 Flow: the client builds the payment authorization (including its nonce), presents it to the checker before signing, and the checker issues the record. The nonce is unique per payment, so a record cannot be reused for a second payment. The record carries the **hash** of the nonce, not the nonce itself, so a record leaked before settlement does not reveal the authorization.
 
@@ -154,7 +154,7 @@ v1.0 defines a minimal registry of check ids:
 
 A link proves only that the issuer referred to that exact record. It does not make the linked record's claims true. That is why each link has its own evidence ceiling.
 
-When the verifier is given the linked records, it recomputes their hashes (`LINK_RECOMPUTED_OK:<rel>` as info; `LINK_NOT_SUPPLIED_OR_MISMATCH:<rel>` as a warning). A `raw(linked-record)` link cannot be recomputed from parsed JSON and is reported as not supplied.
+When the verifier is given the linked records, it recomputes their hashes (`LINK_RECOMPUTED_OK:<rel>` as info; `LINK_NOT_SUPPLIED_OR_MISMATCH:<rel>` as a warning). A `raw(linked-record)` link cannot be recomputed from parsed JSON and is reported as not supplied. When no linked records are supplied at all, the reference verifiers (v1.0.1 and later) report each link as info `LINK_RECOMPUTATION_SKIPPED:<rel>` (§11.2).
 
 ## 8. Evidence ceilings
 
@@ -167,6 +167,8 @@ Each check, link, and field listed in `field_evidence_ceilings` (keys are JSON P
 | `issuer_assertion` | only the issuer's word (score, policy, timestamps, private lists) |
 
 The ceiling is a maximum, not a claim that anyone recomputed the value. An underwriter can weight fields by ceiling.
+
+**Fields not listed.** A field of the record that is not a key of `field_evidence_ceilings` (and is not a check or a link, which carry their own ceiling) MUST be treated as `issuer_assertion`, the weakest ceiling. An empty map `{}` is valid against the schema and means every such field is `issuer_assertion`. *(Clarified in v1.0.1, Abdellah 19.11; no change to the format.)*
 
 Every key of `field_evidence_ceilings` MUST resolve to a member of the record (RFC 6901 against the whole record); otherwise → INVALID (`UNRESOLVED_POINTER:<pointer>`). Ceiling values outside the three above are a schema violation.
 
@@ -185,6 +187,8 @@ Every key of `field_evidence_ceilings` MUST resolve to a member of the record (R
 3. **Later third copy:** `https://trypolkulab.com/.well-known/x402-decision-keyset.json`. Issuers SHOULD add it, but it is not required.
 
 All copies MUST be byte-identical.
+
+**Exact bytes.** The anchor below is the SHA-256 of the **exact published bytes** of the keyset file (UTF-8, LF line endings, as served by GitHub Pages and attached to the release). It is not a hash of the parsed JSON, so any change of bytes, including line endings, gives a different hash and `KEYSET_SHA256_MISMATCH`. Implementers MUST hash the raw bytes as downloaded (for example `curl -fsS <url> | sha256sum`) and MUST NOT let a tool rewrite them first. In particular, a git checkout with `core.autocrlf=true` used to turn the LF file into CRLF, whose SHA-256 is `ffe2d99a…` instead of the anchor. Since v1.0.1 the repository's [`.gitattributes`](./.gitattributes) disables line-ending conversion for every byte-exact file (`*.json`, `*.pem`, `verifier/verify.html`). With an older clone, fetch the raw file or re-clone with `git -c core.autocrlf=false clone …`. *(Reported by Abdellah, 19.11.)*
 
 **Anchor:** the release notes of each tag that publishes a keyset MUST state the hex SHA-256 of the exact bytes of `keyset.json`. A verifier SHOULD check its copy against that anchor (`verify.py --keyset-sha256 <hex>`, or the anchor field in `verify.html`; mismatch → `KEYSET_SHA256_MISMATCH`) and against a second copy. The anchor of the current demo keyset is `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`. The issuer MUST check the Pages copy against the anchor after the merge and before publishing the release notes ([`RELEASING.md`](./RELEASING.md)).
 
@@ -234,6 +238,22 @@ Reference verifiers:
 - [`verifier/verify.py`](./verifier/verify.py): CLI, offline. Requires `rfc8785`.
 - [`verifier/verify.html`](./verifier/verify.html): single file, no network calls, schemas embedded. Hosted copy: https://jrosgren.github.io/x402-decision-record/verifier/verify.html
 
+### 11.2 Info codes
+
+Info codes describe what the verifier did. They never make a record INVALID and never turn an INVALID record VALID (§11 step 6). Errors (INVALID) and warnings are named in the sections above and in `expected.json`.
+
+| info code | when | since |
+|---|---|---|
+| `BINDING_RECOMPUTED_OK` | binding inputs supplied and every check of §4 passed | v1.0.0 |
+| `BINDING_RECOMPUTATION_SKIPPED` | no binding inputs supplied, so the payment binding was not recomputed | v1.0.1 |
+| `LINK_RECOMPUTED_OK:<rel>` | linked records supplied and this link's hash matched one of them | v1.0.0 |
+| `LINK_RECOMPUTATION_SKIPPED:<rel>` | no linked records supplied, so this link's hash was not recomputed (one entry per link) | v1.0.1 |
+| `CUSTOM_CHECK_ID:<id>` | a check id with the `x-<issuer>.` prefix (§6.2) | v1.0.0 |
+| `UNKNOWN_CHECK_ID:<id>` | a check id that is neither registered nor prefixed (§6.2) | v1.0.0 |
+| `EVIDENCE_WITHHELD:<id>` | a check's evidence is not inline; only its hash is signed (§6.1) | v1.0.0 |
+
+When linked records are supplied but a link's hash matches none of them, the result is the warning `LINK_NOT_SUPPLIED_OR_MISMATCH:<rel>` as in v1.0.0, not the skip code. Third-party verifiers MAY use other info codes; `expected.json` checks info with `info_includes` (must be present) and, since v1.0.1, `info_excludes` (must be absent).
+
 ### 11.1 Legacy 0.2-draft records
 
 v0.2 records carry no payment binding, timeline or evidence hashes, so a VALID v0.2 result only says "this issuer key signed these bytes". Verifiers MUST NOT apply these rules unless the caller opts in (`verify.py --allow-legacy-v02`, `allowLegacyV02: true` in `verify.html`'s API, the "Also accept legacy 0.2-draft records" box on the page). When enabled:
@@ -251,6 +271,16 @@ v0.2 records carry no payment binding, timeline or evidence hashes, so a VALID v
 ### 12.0 v1.0.0 (19.11.2026) and what comes next
 
 v1.0.0 is final: the record format, schemas, error codes and test vectors of this release do not change. Comments received before 23.11.2026 from the x402 Slack reviewers or from underwriters will go into **v1.0.1 or v1.1**, as **additive** changes only (new optional fields, new check ids, new info or warning codes, more test vectors). A record that is VALID under v1.0.0 stays VALID. Anything that would break that needs a v2.0.
+
+### 12.0.1 v1.0.1 (20.11.2026)
+
+Additive only (§12.0): the format, schemas and every v1.0.0 error and warning are unchanged, and the 70 v1.0.0 cases in `expected.json` are unchanged. Thanks to Abdellah (holistis, agent-receipt-verify), who built an independent verifier from the v1.0 text and reported these in the x402 Slack thread on 19.11.
+
+- **Line endings (bug fix):** new `.gitattributes` with `*.json -text`, `*.pem -text` and `verifier/verify.html -text` (and `* text=auto eol=lf` for the rest), so a checkout with `core.autocrlf=true` no longer turns the keyset into CRLF and breaks the anchor (`ffe2d99a…` instead of `958754db…`). The committed bytes were and are LF. §9.1 now says the anchor is over the exact published bytes.
+- **Fields not listed in `field_evidence_ceilings`** are `issuer_assertion`; `{}` is valid (§8). A clarification, not a format change.
+- **Info codes for skipped recomputation:** `BINDING_RECOMPUTATION_SKIPPED` and `LINK_RECOMPUTATION_SKIPPED:<rel>` in `verify.py` and `verify.html` (§4, §7, new table §11.2). Info only, so no VALID/INVALID outcome changes.
+- **Test vectors:** 5 new cases in `expected.json` (75 in total), and the optional `info_excludes` field. New tests for LF bytes, the `.gitattributes` rules and the CRLF anchor mismatch.
+- **Verifier version:** `verify.py --version` and `AgentTrustVerifier.VERIFIER_VERSION` report `1.0.1`; the page byline names release v1.0.1.
 
 ### 12.1 Changes from the v0.3-draft review (19.11)
 

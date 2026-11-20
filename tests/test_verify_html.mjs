@@ -43,7 +43,7 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
     if (c.allow_legacy_v02) opts.allowLegacyV02 = true;
     const r = await V.verifyRecord(text(tv + c.record), opts);
     const ok = r.status === c.status && same(r.errors, c.errors) && same(r.warnings, c.warnings) &&
-      (c.info_includes || []).every(i => r.info.includes(i)) && (!c.sha256 || r.sha256 === c.sha256);
+      (c.info_includes || []).every(i => r.info.includes(i)) && (c.info_excludes || []).every(i => !r.info.includes(i)) && (!c.sha256 || r.sha256 === c.sha256);
     check(tag + ' ' + c.name, ok, { status: r.status, errors: r.errors, warnings: r.warnings, info: r.info });
   }
   // the page's embedded demo copies verify too
@@ -98,6 +98,17 @@ check('embedded keyset text equals .well-known file (anchor)', JSON.stringify(V.
 
 // B1: JCS sorts keys by UTF-16 code units (U+1F600 before U+E000), same as rfc8785 in Python
 check('JCS UTF-16 key order', V.canonicalizeToString({ '\ue000': 1, '\u{1F600}': 2 }) === '{"\u{1F600}":2,"\ue000":1}', null);
+
+// v1.0.1: version shown, skipped recomputations are info only
+check('verifier version 1.0.1', V.VERIFIER_VERSION === '1.0.1' && html.includes('release v1.0.1'), V.VERIFIER_VERSION);
+{
+  const r = await V.verifyRecord(text(tv + 'tampered.json'), { keysetText: text(tv + 'keyset-demo.json') });
+  check('skip info on an INVALID record stays INVALID', r.status === 'INVALID' && same(r.errors, ['BAD_SIGNATURE']) &&
+    r.info.includes('BINDING_RECOMPUTATION_SKIPPED') && r.info.includes('LINK_RECOMPUTATION_SKIPPED:seller_attestation'), r);
+  const crlf = text('.well-known/x402-decision-keyset.json').replace(/\n/g, '\r\n');
+  const r2 = await V.verifyRecord(text(tv + 'valid.json'), { keysetText: crlf, keysetSha256: exp.keyset_anchor_sha256 });
+  check('CRLF keyset text does not match the anchor', r2.status === 'INVALID' && same(r2.errors, ['KEYSET_SHA256_MISMATCH']), r2);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

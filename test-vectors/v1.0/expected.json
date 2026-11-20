@@ -1,5 +1,5 @@
 {
-  "_note": "Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). Records and keysets are passed to the verifiers as file text.",
+  "_note": "Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). Records and keysets are passed to the verifiers as file text. info_includes must all be in the info list; info_excludes (v1.0.1) must all be absent. Info entries never change status, errors or warnings.",
   "keyset_anchor_sha256": "958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745",
   "cases": [
     {
@@ -774,6 +774,98 @@
       "status": "INVALID",
       "errors": [
         "LEGACY_V02_WITH_V1_FIELDS:/payment"
+      ],
+      "warnings": []
+    },
+    {
+      "name": "v1.0.1 no binding inputs or linked records: both recomputations skipped (info only)",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "info_includes": [
+        "BINDING_RECOMPUTATION_SKIPPED",
+        "LINK_RECOMPUTATION_SKIPPED:content_time_record",
+        "LINK_RECOMPUTATION_SKIPPED:seller_attestation"
+      ],
+      "info_excludes": [
+        "BINDING_RECOMPUTED_OK",
+        "LINK_RECOMPUTED_OK:content_time_record",
+        "LINK_RECOMPUTED_OK:seller_attestation"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "v1.0.1 binding inputs only: link recomputation skipped (info only)",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "binding-inputs.json",
+      "info_includes": [
+        "BINDING_RECOMPUTED_OK",
+        "LINK_RECOMPUTATION_SKIPPED:content_time_record",
+        "LINK_RECOMPUTATION_SKIPPED:seller_attestation"
+      ],
+      "info_excludes": [
+        "BINDING_RECOMPUTATION_SKIPPED"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "v1.0.1 linked records only: binding recomputation skipped (info only)",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "linked": [
+        "linked/content-time-record.json",
+        "linked/seller-attestation.json"
+      ],
+      "info_includes": [
+        "BINDING_RECOMPUTATION_SKIPPED",
+        "LINK_RECOMPUTED_OK:content_time_record",
+        "LINK_RECOMPUTED_OK:seller_attestation"
+      ],
+      "info_excludes": [
+        "LINK_RECOMPUTATION_SKIPPED:content_time_record",
+        "LINK_RECOMPUTATION_SKIPPED:seller_attestation"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "v1.0.1 full inputs: nothing skipped",
+      "record": "valid.json",
+      "keyset": "keyset-demo.json",
+      "binding_inputs": "binding-inputs.json",
+      "linked": [
+        "linked/content-time-record.json",
+        "linked/seller-attestation.json"
+      ],
+      "info_includes": [
+        "BINDING_RECOMPUTED_OK"
+      ],
+      "info_excludes": [
+        "BINDING_RECOMPUTATION_SKIPPED",
+        "LINK_RECOMPUTATION_SKIPPED:content_time_record",
+        "LINK_RECOMPUTATION_SKIPPED:seller_attestation"
+      ],
+      "status": "VALID",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "name": "v1.0.1 skip info does not rescue an invalid record",
+      "record": "tampered.json",
+      "keyset": "keyset-demo.json",
+      "info_includes": [
+        "BINDING_RECOMPUTATION_SKIPPED",
+        "LINK_RECOMPUTATION_SKIPPED:content_time_record",
+        "LINK_RECOMPUTATION_SKIPPED:seller_attestation"
+      ],
+      "status": "INVALID",
+      "errors": [
+        "BAD_SIGNATURE"
       ],
       "warnings": []
     }

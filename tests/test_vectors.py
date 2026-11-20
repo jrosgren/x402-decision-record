@@ -52,6 +52,8 @@ class ExpectedCases(unittest.TestCase):
                 self.assertEqual(sorted(r["warnings"]), c["warnings"], r)
                 for i in c.get("info_includes", []):
                     self.assertIn(i, r["info"], r)
+                for i in c.get("info_excludes", []):
+                    self.assertNotIn(i, r["info"], r)
                 if c.get("sha256"):
                     self.assertEqual(r["sha256"], c["sha256"])
 
@@ -236,6 +238,74 @@ class Publication(unittest.TestCase):
         for p in ROOT.rglob("*"):
             if p.is_file() and not {".git", "__pycache__", "node_modules"} & set(p.parts):
                 self.assertNotIn(b"BEGIN " + b"PRIVATE KEY", p.read_bytes(), p)
+
+
+class ByteExact(unittest.TestCase):
+    """v1.0.1: the anchor is over exact bytes, so byte-exact files must stay LF (Abdellah, core.autocrlf=true)."""
+
+    BYTE_EXACT = ("*.json", "*.pem")
+
+    def files(self):
+        for pat in self.BYTE_EXACT:
+            for p in ROOT.rglob(pat):
+                if not {".git", "__pycache__", "node_modules"} & set(p.parts):
+                    yield p
+        yield ROOT / "verifier" / "verify.html"
+
+    def test_byte_exact_files_have_no_cr(self):
+        n = 0
+        for p in self.files():
+            self.assertNotIn(b"\r", p.read_bytes(), p)
+            n += 1
+        self.assertGreaterEqual(n, 80)
+
+    def test_gitattributes_disables_eol_conversion(self):
+        lines = (ROOT / ".gitattributes").read_text(encoding="utf-8").split("\n")
+        for rule in ("*.json -text", "*.pem -text", "verifier/verify.html -text"):
+            self.assertIn(rule, lines)
+        self.assertNotIn("*.key", "\n".join(lines))  # private keys are never in the repository
+
+    def test_crlf_keyset_does_not_match_anchor(self):
+        # what a core.autocrlf=true checkout produced before v1.0.1: a different hash, KEYSET_SHA256_MISMATCH
+        lf = (ROOT / ".well-known/x402-decision-keyset.json").read_bytes()
+        crlf = lf.replace(b"\n", b"\r\n")
+        self.assertNotEqual(verify.sha256_hex(crlf), EXP["keyset_anchor_sha256"])
+        r = verify.verify_record((TV / "valid.json").read_bytes(), keyset_bytes=crlf, keyset_sha256=EXP["keyset_anchor_sha256"])
+        self.assertEqual((r["status"], r["errors"]), ("INVALID", ["KEYSET_SHA256_MISMATCH"]))
+        r = verify.verify_record((TV / "valid.json").read_bytes(), keyset_bytes=lf, keyset_sha256=EXP["keyset_anchor_sha256"])
+        self.assertEqual(r["status"], "VALID")
+
+
+class InfoCodes(unittest.TestCase):
+    """v1.0.1: skipped recomputations are info only and never change status, errors or warnings."""
+
+    def test_skip_info_on_cases_without_inputs(self):
+        n = 0
+        for c in EXP["cases"]:
+            if c.get("binding_inputs") or c.get("linked"):
+                continue
+            r = run_case(c)
+            if r["schema_version"] != "1.0" or not r.get("info"):
+                continue
+            # same case, info stripped of the new codes: identical status/errors/warnings by construction
+            self.assertEqual(r["status"], c["status"], c["name"])
+            self.assertEqual(sorted(r["errors"]), c["errors"], c["name"])
+            self.assertEqual(sorted(r["warnings"]), c["warnings"], c["name"])
+            if "BINDING_RECOMPUTATION_SKIPPED" in r["info"]:
+                n += 1
+        self.assertGreater(n, 10)
+
+    def test_info_codes_documented(self):
+        spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+        for code in ("BINDING_RECOMPUTATION_SKIPPED", "LINK_RECOMPUTATION_SKIPPED", "BINDING_RECOMPUTED_OK",
+                     "LINK_RECOMPUTED_OK", "EVIDENCE_WITHHELD", "CUSTOM_CHECK_ID", "UNKNOWN_CHECK_ID"):
+            self.assertIn("`" + code, spec, code)
+
+    def test_verifier_versions(self):
+        self.assertEqual(verify.VERIFIER_VERSION, "1.0.1")
+        html = (ROOT / "verifier" / "verify.html").read_text(encoding="utf-8")
+        self.assertIn("VERIFIER_VERSION: '1.0.1'", html)
+        self.assertIn("release v1.0.1", html)
 
 
 if __name__ == "__main__":

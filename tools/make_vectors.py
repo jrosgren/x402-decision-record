@@ -591,12 +591,27 @@ def main() -> None:
          ["KEY_NOT_VALID_AT_ISSUANCE", "KEY_REVOKED"], keyset="keyset-revoked.json", allow_legacy_v02=True)
     case("legacy v0.2 with one v1.0 member", "negative/legacy-v02-with-payment.json", "INVALID",
          ["LEGACY_V02_WITH_V1_FIELDS:/payment"], allow_legacy_v02=True)
+    # v1.0.1 (additive): skipped recomputations are reported as info, never as warnings or errors
+    SKIP_LINKS = ["LINK_RECOMPUTATION_SKIPPED:content_time_record", "LINK_RECOMPUTATION_SKIPPED:seller_attestation"]
+    case("v1.0.1 no binding inputs or linked records: both recomputations skipped (info only)", "valid.json", "VALID",
+         info_includes=["BINDING_RECOMPUTATION_SKIPPED"] + SKIP_LINKS,
+         info_excludes=["BINDING_RECOMPUTED_OK", "LINK_RECOMPUTED_OK:content_time_record", "LINK_RECOMPUTED_OK:seller_attestation"])
+    case("v1.0.1 binding inputs only: link recomputation skipped (info only)", "valid.json", "VALID", binding_inputs=BI,
+         info_includes=["BINDING_RECOMPUTED_OK"] + SKIP_LINKS, info_excludes=["BINDING_RECOMPUTATION_SKIPPED"])
+    case("v1.0.1 linked records only: binding recomputation skipped (info only)", "valid.json", "VALID", linked=LINKED,
+         info_includes=["BINDING_RECOMPUTATION_SKIPPED", "LINK_RECOMPUTED_OK:content_time_record", "LINK_RECOMPUTED_OK:seller_attestation"],
+         info_excludes=SKIP_LINKS)
+    case("v1.0.1 full inputs: nothing skipped", "valid.json", "VALID", binding_inputs=BI, linked=LINKED,
+         info_includes=["BINDING_RECOMPUTED_OK"], info_excludes=["BINDING_RECOMPUTATION_SKIPPED"] + SKIP_LINKS)
+    case("v1.0.1 skip info does not rescue an invalid record", "tampered.json", "INVALID", ["BAD_SIGNATURE"],
+         info_includes=["BINDING_RECOMPUTATION_SKIPPED"] + SKIP_LINKS)
     dump(TV / "expected.json", {
         "_note": ("Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over "
                   "this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no "
                   "keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means "
                   "legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). "
-                  "Records and keysets are passed to the verifiers as file text."),
+                  "Records and keysets are passed to the verifiers as file text. info_includes must all be in the info list; "
+                  "info_excludes (v1.0.1) must all be absent. Info entries never change status, errors or warnings."),
         "keyset_anchor_sha256": anchor,
         "cases": cases,
     })

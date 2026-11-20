@@ -25,10 +25,10 @@ Then the record is checked against a **keyset** (version `"1.0"`, unique key ids
 **Where the keyset is published (from v1.0.0):**
 
 1. **Primary:** https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json (the `keyset_uri` in each record).
-2. **Secondary:** the `keyset.json` asset on the GitHub release tag `v1.0.0`.
+2. **Secondary:** the `keyset.json` asset on the GitHub release tag `v1.0.0` (and `v1.0.1`, same bytes).
 3. A third copy on trypolkulab.com may follow later. It is optional.
 
-The release notes carry the SHA-256 of `keyset.json` (demo keyset today: `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`). Check your copy against it with `--keyset-sha256`, or paste it into the anchor field of `verify.html` together with the keyset file text. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`, chain id without leading zeros: `^eip155:[1-9][0-9]*$`) and bind to x402 v2 payment requirements (`amount`, not v1 `maxAmountRequired`). Unknown check ids are reported as info and never make a record invalid.
+The release notes carry the SHA-256 of `keyset.json` (demo keyset today: `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`). Check your copy against it with `--keyset-sha256`, or paste it into the anchor field of `verify.html` together with the keyset file text. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`, chain id without leading zeros: `^eip155:[1-9][0-9]*$`) and bind to x402 v2 payment requirements (`amount`, not v1 `maxAmountRequired`). Unknown check ids are reported as info and never make a record invalid. Since v1.0.1, a result without binding inputs or linked records carries the info codes `BINDING_RECOMPUTATION_SKIPPED` and `LINK_RECOMPUTATION_SKIPPED:<rel>`, so a VALID result is not mistaken for a checked binding (SPEC §11.2). Clone with the repo's `.gitattributes` (or download raw files): the keyset anchor is over the exact LF bytes (SPEC §9.1).
 
 Run from the repository root (`pip install rfc8785`, and optionally `cryptography`; otherwise OpenSSL 3 is used):
 
