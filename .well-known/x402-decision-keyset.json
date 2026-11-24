@@ -1,9 +1,8 @@
 {
-  "_note": "EXAMPLE / DEMO keyset. The demo key signs example records only, never production decisions.",
+  "_note": "Proposed next published keyset, 24.11.2026. Keeps the still-active demo key so existing example records keep verifying, and adds the Payvetted production key payvetted-prod-2026-12.",
   "keyset_version": "1.0",
-  "example_data": true,
   "issuer": "https://trypolkulab.com",
-  "published_at": "2026-11-19T00:00:00Z",
+  "published_at": "2026-11-24T19:55:00Z",
   "keys": [
     {
       "key_id": "polkulab-demo-2026-11",
@@ -13,6 +12,15 @@
       "valid_until": "2027-01-01T00:00:00Z",
       "status": "active",
       "purpose": "demo signing of example records only"
+    },
+    {
+      "key_id": "payvetted-prod-2026-12",
+      "alg": "Ed25519",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAelQbJ+/1p89kY93NIY5NtlTUUpdO+ej61cqBe0mHWwI=\n-----END PUBLIC KEY-----\n",
+      "valid_from": "2026-11-24T00:00:00Z",
+      "valid_until": "2027-11-24T00:00:00Z",
+      "status": "active",
+      "purpose": "production signing of Payvetted decision records"
     }
   ]
 }

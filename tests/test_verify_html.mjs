@@ -48,8 +48,8 @@ for (const mode of [{ forceWebCrypto: true }, { forceTweetnacl: true }]) {
   }
   // the page's embedded demo copies verify too
   const r = await V.verifyRecord(V.DEMO_V10.valid, Object.assign({ keysetText: JSON.stringify(V.DEMO_KEYSET, null, 2) + '\n',
-    keysetSha256: exp.keyset_anchor_sha256, bindingInputs: V.DEMO_BINDING_INPUTS, linked: V.DEMO_LINKED }, mode));
-  check(tag + ' embedded v1.0 valid, anchor, binding and links', r.status === 'VALID' && r.info.includes('BINDING_RECOMPUTED_OK') &&
+    bindingInputs: V.DEMO_BINDING_INPUTS, linked: V.DEMO_LINKED }, mode));
+  check(tag + ' embedded v1.0 valid, binding and links', r.status === 'VALID' && r.info.includes('BINDING_RECOMPUTED_OK') &&
     r.info.includes('LINK_RECOMPUTED_OK:seller_attestation'), r);
   // legacy call signature verifyRecord(record, pem, options)
   const r2 = await V.verifyRecord(text('verifier/record-valid.json'), text('verifier/demo-pub.pem'), Object.assign({ allowLegacyV02: true }, mode));
@@ -94,7 +94,14 @@ check('embedded vectors equal files', JSON.stringify(V.DEMO_V10.valid) === JSON.
   JSON.stringify(V.DEMO_BINDING_INPUTS) === JSON.stringify(load(tv + 'binding-inputs.json')), null);
 check('embedded schemas equal files', JSON.stringify(V.RECORD_SCHEMA) === JSON.stringify(load('schema/decision-record.v1.0.schema.json')) &&
   JSON.stringify(V.KEYSET_SCHEMA) === JSON.stringify(load('schema/keyset.v1.0.schema.json')), null);
-check('embedded keyset text equals .well-known file (anchor)', JSON.stringify(V.DEMO_KEYSET, null, 2) + '\n' === text('.well-known/x402-decision-keyset.json'), null);
+check('embedded keyset text equals the demo keyset files', JSON.stringify(V.DEMO_KEYSET, null, 2) + '\n' === text(tv + 'keyset-demo.json') &&
+  text(tv + 'keyset-demo.json') === text('verifier/demo-keyset.json'), null);
+check('published keyset equals well-known and the release anchor', text('.well-known/x402-decision-keyset.json') === text(tv + 'keyset-published.json') &&
+  (await V.sha256Hex(new TextEncoder().encode(text('.well-known/x402-decision-keyset.json')))) === exp.keyset_anchor_sha256, null);
+{
+  const r = await V.verifyRecord(text(tv + 'valid.json'), { keysetText: text(tv + 'keyset-published.json'), keysetSha256: exp.keyset_anchor_sha256 });
+  check('valid record verifies against the published keyset and anchor', r.status === 'VALID', r);
+}
 
 // B1: JCS sorts keys by UTF-16 code units (U+1F600 before U+E000), same as rfc8785 in Python
 check('JCS UTF-16 key order', V.canonicalizeToString({ '\ue000': 1, '\u{1F600}': 2 }) === '{"\u{1F600}":2,"\ue000":1}', null);

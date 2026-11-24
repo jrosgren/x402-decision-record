@@ -1,6 +1,6 @@
 {
   "_note": "Expected verifier results. Paths are relative to this folder. Both reference test suites iterate over this list and compare status, the sorted errors and the sorted warnings exactly. keyset null means no keyset; keyset_sha256 is checked against the exact bytes of the keyset file. allow_legacy_v02 true means legacy 0.2-draft verification is enabled (verify.py --allow-legacy-v02, allowLegacyV02 in verify.html). Records and keysets are passed to the verifiers as file text. info_includes must all be in the info list; info_excludes (v1.0.1) must all be absent. Info entries never change status, errors or warnings.",
-  "keyset_anchor_sha256": "958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745",
+  "keyset_anchor_sha256": "725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a",
   "cases": [
     {
       "name": "valid, full (binding inputs and linked records)",
@@ -25,8 +25,8 @@
     {
       "name": "valid, keyset matches the release anchor",
       "record": "valid.json",
-      "keyset": "keyset-demo.json",
-      "keyset_sha256": "958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745",
+      "keyset": "keyset-published.json",
+      "keyset_sha256": "725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a",
       "status": "VALID",
       "errors": [],
       "warnings": []

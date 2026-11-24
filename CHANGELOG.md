@@ -2,6 +2,15 @@
 
 All releases of x402-decision-record. The record format is `schema_version: "1.0"` in every 1.0.x release. Patch releases are additive only (SPEC §12.0): a record that is VALID under v1.0.0 stays VALID.
 
+## v1.0.2 (24.11.2026)
+
+Additive only (SPEC §12.0): the record format, schemas, verifiers and all 75 v1.0.1 test-vector files are unchanged. A record that is VALID under v1.0.1 stays VALID.
+
+- **Published keyset:** [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json) keeps the still-active demo key `polkulab-demo-2026-11` and adds the Payvetted production public key `payvetted-prod-2026-12` (valid from 2026-11-24T00:00:00Z to 2027-11-24T00:00:00Z). `example_data` is removed from the published file. The production private key is held in AWS KMS and is not in this repository. A production signing endpoint is not live yet, and no production records have been issued.
+- **Anchor:** SHA-256 of the published keyset bytes is `725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a`. The v1.0.0/v1.0.1 demo-only keyset hashed to `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`.
+- **`tools/make_vectors.py`** no longer overwrites the published well-known keyset with the demo-only keyset. It still writes `test-vectors/v1.0/keyset-demo.json` and `verifier/demo-keyset.json`, and it copies the published file to `test-vectors/v1.0/keyset-published.json` so the release-anchor test stays in sync.
+- **Verifier version** remains `1.0.1` (no change to verification behaviour).
+
 ## v1.0.1 (20.11.2026)
 
 Thanks to **Abdellah (holistis, agent-receipt-verify)**, who built an independent verifier from the v1.0 spec, passed all 70 cases, and reported the items below in the x402 Slack thread on 19.11.

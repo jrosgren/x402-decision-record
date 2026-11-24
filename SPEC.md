@@ -1,8 +1,8 @@
 # x402 pre-payment decision record: v1.0
 
-**Status: v1.0, final.** Released as **v1.0.0 on 19.11.2026** (JSON Schema, changelog, test vectors and verifiers); current patch release **v1.0.1 (20.11.2026)**, additive only (§12.0.1). The record format is still `schema_version: "1.0"`. This text was v0.3-draft (PR #1) and carries the fixes from the 19.11 reviews. Comments remain welcome in a GitHub issue or the x402 Slack thread; see §12.0 for how they are handled.
+**Status: v1.0, final.** Released as **v1.0.0 on 19.11.2026** (JSON Schema, changelog, test vectors and verifiers); current patch release **v1.0.2 (24.11.2026)**, additive only (§12.0.2). The record format is still `schema_version: "1.0"`. This text was v0.3-draft (PR #1) and carries the fixes from the 19.11 reviews. Comments remain welcome in a GitHub issue or the x402 Slack thread; see §12.0 for how they are handled.
 
-**EXAMPLE DATA ONLY.** All records, keys, wallets and URLs in this repository are made-up illustrations. The demo key `polkulab-demo-2026-11` signs example records only. Payvetted is pre-launch and issues no production records yet.
+**EXAMPLE DATA ONLY, with one exception.** The sample records, test vectors, wallets and demo key `polkulab-demo-2026-11` are made-up illustrations. The demo key signs example records only. The published keyset also lists the Payvetted production public key `payvetted-prod-2026-12`. A production signing endpoint is not live, and Payvetted issues no production records yet.
 
 Author: Aron, Polkulab (Payvetted). Thanks to Miguel Martinez (ReturnCheck), Romeo Reynolds and Abdellah (agent-receipt-verify) for the feedback in the x402 Slack thread that shaped this version.
 
@@ -190,7 +190,7 @@ All copies MUST be byte-identical.
 
 **Exact bytes.** The anchor below is the SHA-256 of the **exact published bytes** of the keyset file (UTF-8, LF line endings, as served by GitHub Pages and attached to the release). It is not a hash of the parsed JSON, so any change of bytes, including line endings, gives a different hash and `KEYSET_SHA256_MISMATCH`. Implementers MUST hash the raw bytes as downloaded (for example `curl -fsS <url> | sha256sum`) and MUST NOT let a tool rewrite them first. In particular, a git checkout with `core.autocrlf=true` used to turn the LF file into CRLF, whose SHA-256 is `ffe2d99a…` instead of the anchor. Since v1.0.1 the repository's [`.gitattributes`](./.gitattributes) disables line-ending conversion for every byte-exact file (`*.json`, `*.pem`, `verifier/verify.html`). With an older clone, fetch the raw file or re-clone with `git -c core.autocrlf=false clone …`. *(Reported by Abdellah, 19.11.)*
 
-**Anchor:** the release notes of each tag that publishes a keyset MUST state the hex SHA-256 of the exact bytes of `keyset.json`. A verifier SHOULD check its copy against that anchor (`verify.py --keyset-sha256 <hex>`, or the anchor field in `verify.html`; mismatch → `KEYSET_SHA256_MISMATCH`) and against a second copy. The anchor of the current demo keyset is `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`. The issuer MUST check the Pages copy against the anchor after the merge and before publishing the release notes ([`RELEASING.md`](./RELEASING.md)).
+**Anchor:** the release notes of each tag that publishes a keyset MUST state the hex SHA-256 of the exact bytes of `keyset.json`. A verifier SHOULD check its copy against that anchor (`verify.py --keyset-sha256 <hex>`, or the anchor field in `verify.html`; mismatch → `KEYSET_SHA256_MISMATCH`) and against a second copy. The anchor of the current published keyset (v1.0.2, demo key plus the production public key) is `725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a`. The v1.0.0/v1.0.1 demo-only keyset hashed to `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`. The issuer MUST check the Pages copy against the anchor after the merge and before publishing the release notes ([`RELEASING.md`](./RELEASING.md)).
 
 ### 9.2 No root key in v1.0
 
@@ -271,6 +271,13 @@ v0.2 records carry no payment binding, timeline or evidence hashes, so a VALID v
 ### 12.0 v1.0.0 (19.11.2026) and what comes next
 
 v1.0.0 is final: the record format, schemas, error codes and test vectors of this release do not change. Comments received before 23.11.2026 from the x402 Slack reviewers or from underwriters will go into **v1.0.1 or v1.1**, as **additive** changes only (new optional fields, new check ids, new info or warning codes, more test vectors). A record that is VALID under v1.0.0 stays VALID. Anything that would break that needs a v2.0.
+
+### 12.0.2 v1.0.2 (24.11.2026)
+
+Additive only (§12.0): the record format, schemas, verifiers and all 75 v1.0.1 test-vector files are unchanged. A record that is VALID under v1.0.1 stays VALID.
+
+- **Published keyset:** the primary copy at [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json) keeps the still-active demo key and adds the Payvetted production public key `payvetted-prod-2026-12`. The demo key still signs example records only. A production signing endpoint is not live yet. The new keyset anchor is `725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a` (§9.1).
+- **Generator:** `tools/make_vectors.py` no longer overwrites the published well-known file with the demo-only keyset.
 
 ### 12.0.1 v1.0.1 (20.11.2026)
 

@@ -1,6 +1,6 @@
 # Third-party verifier for an AgentTrust decision record
 
-**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. Payvetted is pre-launch and does not issue production records yet. This folder verifies format v1.0 (release v1.0.0, see [`../SPEC.md`](../SPEC.md)) and, only when you ask for it, legacy v0.2-draft.
+**EXAMPLE DATA ONLY.** The records in this folder are signed illustrations with made-up values, not live Payvetted decisions. A production signing endpoint is not live, and Payvetted issues no production records yet. This folder verifies format v1.0 (current patch release v1.0.2, see [`../SPEC.md`](../SPEC.md)) and, only when you ask for it, legacy v0.2-draft.
 
 A third party can check that a record has not been changed since it was signed, without access to Polkulab systems and without trusting Polkulab's own logs. Verification uses only the record, the public key, and open algorithms.
 
@@ -20,15 +20,15 @@ The SHA-256 of the valid example's canonical bytes is:
 
 v1.0 records are first validated against the v1.0 JSON Schema (copies next to this script: `decision-record.v1.0.schema.json`, `keyset.v1.0.schema.json`; `verify.html` embeds them). Both verifiers use the same small validator and report the same error codes, for example `BAD_SIGNATURE_OBJECT:/signature`, `NONCANONICAL_SIGNATURE:/signature/sig_base64`, `BAD_TIMESTAMP:/timeline/decision_issued_at`, `BAD_NUMBER:/decision/score` or `SCHEMA_VIOLATION:<pointer>`. `schema_version` must be exactly `"1.0"`; `"0.2-draft"` is accepted only with the legacy opt-in (below), and anything else is `UNSUPPORTED_SCHEMA_VERSION`. Before parsing, both verifiers scan the JSON text: a member name repeated in one object gives `DUPLICATE_MEMBER:<pointer>`, and a number with a fraction or exponent part or outside ±(2^53−1) gives `BAD_NUMBER:<pointer>`. `verify.html` does this with its own scanner, so it does not depend on browser support for `JSON.parse` source text.
 
-Then the record is checked against a **keyset** (version `"1.0"`, unique key ids, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json). Signatures must be canonical base64 with `S < L` on every path, including the tweetnacl fallback in `verify.html`.
+Then the record is checked against a **keyset** (version `"1.0"`, unique key ids, validity window, revocation). By default this is [`demo-keyset.json`](./demo-keyset.json) (the demo-only test keyset, not the published well-known file). Signatures must be canonical base64 with `S < L` on every path, including the tweetnacl fallback in `verify.html`.
 
 **Where the keyset is published (from v1.0.0):**
 
 1. **Primary:** https://jrosgren.github.io/x402-decision-record/.well-known/x402-decision-keyset.json (the `keyset_uri` in each record).
-2. **Secondary:** the `keyset.json` asset on the GitHub release tag `v1.0.0` (and `v1.0.1`, same bytes).
+2. **Secondary:** the `keyset.json` asset on the GitHub release tag that published the keyset (`v1.0.0` and `v1.0.1` share the demo-only bytes; `v1.0.2` adds the production public key).
 3. A third copy on trypolkulab.com may follow later. It is optional.
 
-The release notes carry the SHA-256 of `keyset.json` (demo keyset today: `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`). Check your copy against it with `--keyset-sha256`, or paste it into the anchor field of `verify.html` together with the keyset file text. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`, chain id without leading zeros: `^eip155:[1-9][0-9]*$`) and bind to x402 v2 payment requirements (`amount`, not v1 `maxAmountRequired`). Unknown check ids are reported as info and never make a record invalid. Since v1.0.1, a result without binding inputs or linked records carries the info codes `BINDING_RECOMPUTATION_SKIPPED` and `LINK_RECOMPUTATION_SKIPPED:<rel>`, so a VALID result is not mistaken for a checked binding (SPEC §11.2). Clone with the repo's `.gitattributes` (or download raw files): the keyset anchor is over the exact LF bytes (SPEC §9.1).
+The release notes carry the SHA-256 of `keyset.json` (published keyset as of v1.0.2: `725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a`; v1.0.0/v1.0.1 demo-only keyset: `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`). Check your copy against it with `--keyset-sha256`, or paste it into the anchor field of `verify.html` together with the keyset file text. v1.0 has no root key; the `keyset_signature` field is reserved for v1.1 and is ignored. The verifiers only accept EVM networks (`eip155:<chain id>`, chain id without leading zeros: `^eip155:[1-9][0-9]*$`) and bind to x402 v2 payment requirements (`amount`, not v1 `maxAmountRequired`). Unknown check ids are reported as info and never make a record invalid. Since v1.0.1, a result without binding inputs or linked records carries the info codes `BINDING_RECOMPUTATION_SKIPPED` and `LINK_RECOMPUTATION_SKIPPED:<rel>`, so a VALID result is not mistaken for a checked binding (SPEC §11.2). Clone with the repo's `.gitattributes` (or download raw files): the keyset anchor is over the exact LF bytes (SPEC §9.1).
 
 Run from the repository root (`pip install rfc8785`, and optionally `cryptography`; otherwise OpenSSL 3 is used):
 
@@ -41,7 +41,7 @@ python3 verifier/verify.py test-vectors/v1.0/valid.json \
     --binding-inputs test-vectors/v1.0/binding-inputs.json \
     --linked test-vectors/v1.0/linked/*.json --json                     # also recompute binding and link hashes
 python3 verifier/verify.py test-vectors/v1.0/valid.json \
-    --keyset .well-known/x402-decision-keyset.json --keyset-sha256 958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745
+    --keyset .well-known/x402-decision-keyset.json --keyset-sha256 725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a
 ```
 
 ### Using the verifiers as a library: pass raw text

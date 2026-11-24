@@ -207,12 +207,18 @@ class Cli(unittest.TestCase):
 
 class Publication(unittest.TestCase):
     def test_keyset_copies_identical_and_anchor(self):
-        a = (ROOT / ".well-known/x402-decision-keyset.json").read_bytes()
-        self.assertEqual(a, (ROOT / "verifier/demo-keyset.json").read_bytes())
-        self.assertEqual(a, (TV / "keyset-demo.json").read_bytes())
+        published = (ROOT / ".well-known/x402-decision-keyset.json").read_bytes()
+        demo = (TV / "keyset-demo.json").read_bytes()
+        self.assertEqual(published, (TV / "keyset-published.json").read_bytes())
+        self.assertEqual(demo, (ROOT / "verifier/demo-keyset.json").read_bytes())
+        self.assertNotEqual(published, demo)
         self.assertTrue((ROOT / ".nojekyll").exists())
-        self.assertEqual(verify.sha256_hex(a), EXP["keyset_anchor_sha256"])
-        for doc in ("SPEC.md", "RELEASING.md", "README.md"):
+        self.assertEqual(verify.sha256_hex(published), EXP["keyset_anchor_sha256"])
+        pub = load(ROOT / ".well-known/x402-decision-keyset.json")
+        self.assertEqual({k["key_id"] for k in pub["keys"]},
+                         {"polkulab-demo-2026-11", "payvetted-prod-2026-12"})
+        self.assertEqual(pub["keys"][0], load(TV / "keyset-demo.json")["keys"][0])
+        for doc in ("SPEC.md", "RELEASING.md", "README.md", "verifier/README.md"):
             self.assertIn(EXP["keyset_anchor_sha256"], (ROOT / doc).read_text(encoding="utf-8"), doc)
 
     def test_reserved_keyset_signature_ignored(self):
