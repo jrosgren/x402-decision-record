@@ -23,7 +23,8 @@ Legacy 0.2-draft vectors (from the follow-up review): `negative/legacy-v1-fields
 
 Other files:
 
-- `keyset-demo.json`: the demo keyset, byte-identical to `../../.well-known/x402-decision-keyset.json`.
+- `keyset-demo.json`: the demo-only keyset used by the test vectors, byte-identical to `../../verifier/demo-keyset.json`. It is not the published well-known file.
+- `keyset-published.json`: a byte-identical copy of `../../.well-known/x402-decision-keyset.json` (demo key plus the production public key). The release-notes anchor is the SHA-256 of these exact bytes.
 - `binding-inputs.json`: the raw nonce, x402 v2 payment requirements, resource and request behind the binding hashes.
 - `example-outcome-record.json`: an unsigned example of a later record linking to `valid.json` with `jcs(record)`, which hashes the whole record including its signature.
 - `linked/`: the example linked records whose hashes appear in `links`.

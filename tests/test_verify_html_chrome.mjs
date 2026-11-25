@@ -19,7 +19,7 @@ const cases = exp.cases.map(c => ({
   binding: c.binding_inputs ? text(tv + c.binding_inputs) : null,
   linked: c.linked ? c.linked.map(p => text(tv + p)) : null,
 }));
-const data = JSON.stringify({ cases, anchor: exp.keyset_anchor_sha256, noncanon: text(tv + 'negative/sig-noncanonical-base64.json') })
+const data = JSON.stringify({ cases, anchor: exp.keyset_anchor_sha256, publishedKeyset: text(tv + 'keyset-published.json'), noncanon: text(tv + 'negative/sig-noncanonical-base64.json') })
   .replace(/</g, '\\u003c');
 
 const harness = `<script>
@@ -52,8 +52,12 @@ const harness = `<script>
       out.ui.push({ name, ok: got === want, got, detail: $('result').textContent });
     }
     await ui('page default record (v1.0 valid)', () => {}, 'VALID');
-    await ui('v1.0 valid button + anchor', () => { $('load-v10-valid').click(); $('anchor').value = D.anchor; }, 'VALID');
-    await ui('v1.0 valid, wrong anchor', () => { $('load-v10-valid').click(); $('anchor').value = '00'.repeat(32); }, 'INVALID');
+    await ui('v1.0 valid button + published keyset and anchor', () => {
+      $('load-v10-valid').click(); $('keyset').value = D.publishedKeyset; $('anchor').value = D.anchor;
+    }, 'VALID');
+    await ui('v1.0 valid, wrong anchor', () => {
+      $('load-v10-valid').click(); $('keyset').value = D.publishedKeyset; $('anchor').value = '00'.repeat(32);
+    }, 'INVALID');
     await ui('v1.0 tampered button', () => { $('load-v10-tampered').click(); $('anchor').value = ''; }, 'INVALID');
     await ui('v1.0 wrong-key button', () => { $('load-v10-wrong-key').click(); }, 'INVALID');
     await ui('v1.0 expired-key button', () => { $('load-v10-expired-key').click(); }, 'INVALID');

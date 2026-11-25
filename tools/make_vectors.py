@@ -6,8 +6,14 @@ Usage: python3 tools/make_vectors.py --key /path/to/demo-key.pem
 The demo private key is NOT in this repository and must never be committed.
 Requires: cryptography, rfc8785 (pip install cryptography rfc8785).
 Writes test-vectors/v1.0/* (positive and negative vectors plus expected.json),
-the keyset copies, the schema copies in verifier/, and injects the vectors and
-schemas into verifier/verify.html.
+the demo keyset copies (test-vectors/v1.0/keyset-demo.json and verifier/demo-keyset.json),
+a byte-identical copy of the published well-known keyset as
+test-vectors/v1.0/keyset-published.json, the schema copies in verifier/, and injects
+the vectors and schemas into verifier/verify.html.
+
+This script does not overwrite .well-known/x402-decision-keyset.json (the published
+keyset). Update that file separately, then regenerate so keyset-published.json and
+the release-notes anchor in expected.json stay in sync.
 """
 from __future__ import annotations
 
@@ -332,8 +338,14 @@ def main() -> None:
     dump(TV / "linked" / "content-time-record.json", CONTENT_TIME_RECORD)
     dump(TV / "linked" / "seller-attestation.json", SELLER_ATTESTATION)
     dump(ROOT / "verifier" / "demo-keyset.json", keyset)
-    (ROOT / ".well-known").mkdir(exist_ok=True)
-    dump(ROOT / ".well-known" / "x402-decision-keyset.json", keyset)
+    # The published keyset is maintained separately and must not be overwritten
+    # with the demo-only keyset (which would drop any production keys).
+    published_path = ROOT / ".well-known" / "x402-decision-keyset.json"
+    if not published_path.is_file():
+        raise SystemExit("missing published keyset at .well-known/x402-decision-keyset.json; "
+                         "this generator does not create or overwrite it")
+    published_bytes = published_path.read_bytes()
+    (TV / "keyset-published.json").write_bytes(published_bytes)
 
     # binding inputs: x402 v2 plus variants
     dump(TV / "binding-inputs.json", BINDING_INPUTS)
@@ -478,9 +490,11 @@ def main() -> None:
                    "record_sha256": h("jcs(record)", jcs(valid)), "evidence_ceiling": "issuer_assertion"}],
     }
     dump(TV / "example-outcome-record.json", outcome)
-    keyset_bytes = (ROOT / ".well-known" / "x402-decision-keyset.json").read_bytes()
+    keyset_bytes = published_bytes
     anchor = sha256_hex(keyset_bytes)
-    print("keyset.json sha256 (release-notes anchor):", anchor)
+    print("published keyset sha256 (release-notes anchor):", anchor)
+    print("demo keyset sha256 (test vectors only, not the release anchor):",
+          sha256_hex((TV / "keyset-demo.json").read_bytes()))
 
     # ------------------------------------------------------------ expected.json
     body = copy.deepcopy(valid); body.pop("signature")
@@ -497,7 +511,8 @@ def main() -> None:
     case("valid, full (binding inputs and linked records)", "valid.json", "VALID", binding_inputs=BI, linked=LINKED,
          info_includes=["BINDING_RECOMPUTED_OK", "LINK_RECOMPUTED_OK:content_time_record", "LINK_RECOMPUTED_OK:seller_attestation",
                         "CUSTOM_CHECK_ID:x-polkulab.sanctions_list"], sha256=sha256_hex(jcs(body)))
-    case("valid, keyset matches the release anchor", "valid.json", "VALID", keyset_sha256=anchor)
+    case("valid, keyset matches the release anchor", "valid.json", "VALID",
+         keyset="keyset-published.json", keyset_sha256=anchor)
     case("keyset does not match the release anchor", "valid.json", "INVALID", ["KEYSET_SHA256_MISMATCH"], keyset_sha256="0" * 64)
     case("tampered after signing (score 62 -> 30)", "tampered.json", "INVALID", ["BAD_SIGNATURE"])
     case("signed with a different key under the demo key_id", "wrong-key.json", "INVALID", ["BAD_SIGNATURE"])

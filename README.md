@@ -1,6 +1,6 @@
 # x402 decision record (example)
 
-**EXAMPLE DATA ONLY.** This repository is an illustrative example of a signed pre-payment decision record for agent payments on [x402](https://www.x402.org/). Nothing here is a live integration, a finished standard, or production data. All values in the sample are made up.
+**EXAMPLE DATA ONLY, with one exception.** This repository is an illustrative example of a signed pre-payment decision record for agent payments on [x402](https://www.x402.org/). The sample records and test vectors are made-up illustrations, signed only with the demo key. The published keyset also lists the Payvetted production public key `payvetted-prod-2026-12`. A production signing endpoint is not live, and Payvetted issues no production records yet.
 
 ## The idea
 
@@ -19,11 +19,11 @@ This is a question, not a finished proposal: would a shared format be useful, or
 
 ## v1.0
 
-[`SPEC.md`](./SPEC.md) describes v1.0, which was v0.3-draft and was shaped by feedback in the x402 Slack and a review on 19.11. The record is bound to one x402 v2 payment through the hash of the authorization nonce, and each check has a timestamp and an evidence hash. Each hash states exactly which bytes it covers, and each field carries an evidence ceiling. Other records can be linked by hash, a not-covered list says what the record does not attest, and the keys have rotation and revocation rules. The signature object is strict (exactly `alg`, `key_id`, `sig_base64`, canonical base64, `S < L`), so the hash of a signed record cannot be changed by a third party. It comes with a JSON Schema in [`schema/`](./schema/), signed positive and negative test vectors in [`test-vectors/v1.0/`](./test-vectors/v1.0/) with one shared [`expected.json`](./test-vectors/v1.0/expected.json), and two verifiers that give identical results on every vector. **Released as v1.0.0 on 19.11.2026; v1.0.1 on 20.11.2026** (line-ending fix, §8 clarification, info codes for skipped recomputation; additive only, see [`CHANGELOG.md`](./CHANGELOG.md)). Comments received before 23.11.2026 go into v1.0.1 or v1.1 as additive changes (SPEC §12.0).
+[`SPEC.md`](./SPEC.md) describes v1.0, which was v0.3-draft and was shaped by feedback in the x402 Slack and a review on 19.11. The record is bound to one x402 v2 payment through the hash of the authorization nonce, and each check has a timestamp and an evidence hash. Each hash states exactly which bytes it covers, and each field carries an evidence ceiling. Other records can be linked by hash, a not-covered list says what the record does not attest, and the keys have rotation and revocation rules. The signature object is strict (exactly `alg`, `key_id`, `sig_base64`, canonical base64, `S < L`), so the hash of a signed record cannot be changed by a third party. It comes with a JSON Schema in [`schema/`](./schema/), signed positive and negative test vectors in [`test-vectors/v1.0/`](./test-vectors/v1.0/) with one shared [`expected.json`](./test-vectors/v1.0/expected.json), and two verifiers that give identical results on every vector. **Released as v1.0.0 on 19.11.2026; v1.0.1 on 20.11.2026; v1.0.2 on 24.11.2026** (the published keyset now includes the production public key; additive only, see [`CHANGELOG.md`](./CHANGELOG.md)). Comments received before 23.11.2026 go into v1.0.1 or v1.1 as additive changes (SPEC §12.0).
 
 If you clone with `core.autocrlf=true`: the repo's `.gitattributes` keeps the byte-exact files (JSON, PEM, `verify.html`) in LF, so the keyset still hashes to the anchor. Always hash the raw downloaded bytes.
 
-Demo keyset anchor (SHA-256 of [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json)): `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`
+Published keyset anchor (SHA-256 of [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json), v1.0.2): `725d2ecea67f2ee16908fd93130ab97c44ba9b94b51e7b26201ab6ed7975093a`. The v1.0.0/v1.0.1 demo-only keyset hashed to `958754dbd30cea1c7fa2937b674242d75a5297f5edcb3a5a3d48d0878223f745`.
 
 ## What's in this repo
 
@@ -33,7 +33,7 @@ Demo keyset anchor (SHA-256 of [`.well-known/x402-decision-keyset.json`](./.well
 - [`SPEC.md`](./SPEC.md) — v1.0 spec and changelog
 - [`schema/`](./schema/) — JSON Schema 2020-12 for the record and the keyset
 - [`test-vectors/v1.0/`](./test-vectors/v1.0/) — signed positive and negative vectors (example data), listed with expected results in `expected.json`
-- [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json): demo keyset at its published location (primary copy, served by GitHub Pages)
+- [`.well-known/x402-decision-keyset.json`](./.well-known/x402-decision-keyset.json): published keyset (demo key plus the production public key) at its primary location, served by GitHub Pages
 - [`RELEASING.md`](./RELEASING.md): release steps and the keyset SHA-256 anchor
 - [`CHANGELOG.md`](./CHANGELOG.md): release history
 - [`tests/`](./tests/) — `bash tests/run_all.sh` (Python, OpenSSL, Node and headless Chrome; needs `pip install rfc8785 jsonschema cryptography`)
