@@ -1,0 +1,78 @@
+Vectors: github.com/holistis/agent-receipt-verify, cross-run 2026-11-24
+upstream commit: 0280039f00d8a62245a8faa73dd4e65d4985b03b 2026-11-24T08:49:15+01:00
+ours (x402-decision-record) commit: ee2a6e92a5ad9734285313dcf532490be9b383c6 2026-11-20T10:46:47+02:00
+
+== 0. upstream SHA256SUMS
+  attempt-identity: files=72 mismatches=0
+  attempt-identity-extra: files=8 mismatches=0
+
+== A/B. known-answer vectors (30)
+  vector                                                             exp  | NATIVE (our spec)      | ADAPTER (5.5 via our JCS)
+  known-answer-body-duplicate-keys-hashed-as-bytes-wrong             FAIL | body_ != wrong value   | agrees
+  known-answer-body-duplicate-keys-hashed-as-bytes                   PASS | body_ == right value   | agrees
+  known-answer-body-gzip-then-rfc8785-wrong                          FAIL | body_ != wrong value   | agrees
+  known-answer-body-gzip-then-rfc8785                                PASS | body_ != right value   | agrees
+  known-answer-body-iso-8859-1-is-latin1-wrong                       FAIL | body_ != wrong value   | agrees
+  known-answer-body-iso-8859-1-is-latin1                             PASS | body_ != right value   | agrees
+  known-answer-body-json-rfc8785-wrong                               FAIL | body_ == WRONG value   | agrees
+  known-answer-body-json-rfc8785                                     PASS | body_ != right value   | agrees
+  known-answer-query-bare-name-stays-bare-wrong                      FAIL | query != wrong value   | agrees
+  known-answer-query-bare-name-stays-bare                            PASS | query == right value   | agrees
+  known-answer-query-decode-then-encode-wrong                        FAIL | query == WRONG value   | agrees
+  known-answer-query-decode-then-encode                              PASS | query != right value   | agrees
+  known-answer-query-invalid-utf8-stays-octets-wrong                 FAIL | query != wrong value   | agrees
+  known-answer-query-invalid-utf8-stays-octets                       PASS | query == right value   | agrees
+  known-answer-query-plus-stays-plus-wrong                           FAIL | query != wrong value   | agrees
+  known-answer-query-plus-stays-plus                                 PASS | query != right value   | agrees
+  known-answer-query-repeated-keys-keep-order-wrong                  FAIL | query != wrong value   | agrees
+  known-answer-query-repeated-keys-keep-order                        PASS | query != right value   | agrees
+  known-answer-query-semicolon-is-not-a-separator-wrong              FAIL | query != wrong value   | agrees
+  known-answer-query-semicolon-is-not-a-separator                    PASS | query != right value   | agrees
+  known-answer-query-uppercase-hex-and-arrival-order-wrong           FAIL | query != wrong value   | agrees
+  known-answer-query-uppercase-hex-and-arrival-order                 PASS | query != right value   | agrees
+  extra/known-answer-body-charset-name-is-case-insensitive-wrong     FAIL | body_ != wrong value   | agrees
+  extra/known-answer-body-charset-name-is-case-insensitive           PASS | body_ != right value   | agrees
+  extra/known-answer-body-content-encodings-reversed-in-order-wrong  FAIL | body_ == WRONG value   | agrees
+  extra/known-answer-body-content-encodings-reversed-in-order        PASS | body_ != right value   | agrees
+  extra/known-answer-body-deflate-then-rfc8785-wrong                 FAIL | body_ != wrong value   | agrees
+  extra/known-answer-body-deflate-then-rfc8785                       PASS | body_ != right value   | agrees
+  extra/known-answer-body-plus-json-media-type-is-json-wrong         FAIL | body_ == WRONG value   | agrees
+  extra/known-answer-body-plus-json-media-type-is-json               PASS | body_ != right value   | agrees
+  tally: {'native_eq_right': 3, 'native_eq_wrong': 4, 'native_neither': 12, 'adapter_ok': 30, 'adapter_bad': 0}
+
+== C. canonical_variants: equal/different relation, section 5.5 vs our NATIVE request_sha256
+  canonical-body-gzip-changes-identity                 5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-body-gzip-stable                           5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-charset-stable                             5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-empty-query-emitted-as-empty               5.5 requires SAME | ours SAME agree | adapter SAME
+  canonical-empty-query-equals-absent                  5.5 requires SAME | ours SAME agree | adapter SAME
+  canonical-json-key-order-stable                      5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-json-whitespace-changes-identity           5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-query-percent-case-changes-identity        5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-query-percent-case-stable                  5.5 requires SAME | ours DIFF DIFFER | adapter SAME
+  canonical-repeated-keys-collapse                     5.5 requires DIFF | ours DIFF agree | adapter DIFF
+  canonical-repeated-keys-distinct                     5.5 requires DIFF | ours DIFF agree | adapter DIFF
+  canonical-repeated-keys-order-matters                5.5 requires DIFF | ours DIFF agree | adapter DIFF
+  canonical-repeated-keys-reordered-same-identity      5.5 requires DIFF | ours DIFF agree | adapter DIFF
+  native agree=6 differ=7
+  identity labels reproduced as sha256(sorted compact JSON of adapter members): 17/26 (informational; upstream says labels are produced by their own function)
+
+== D. verifier sanity (ours, v1.0.1)
+  valid.json + binding-inputs.json: VALID ['BINDING_RECOMPUTED_OK']
+  same record, resource_request swapped for an upstream raw: INVALID ['BINDING_HASH_MISMATCH:jcs(resource_request)']
+  native request_sha256 for upstream raws (origin placeholder https://example.invalid):
+    known-answer-body-duplicate-keys-hashed-as-bytes             260065b6f5071c9721d80f9013e05dd4ce9088906101f2d800beb9d963648952
+    known-answer-body-gzip-then-rfc8785                          7c1aa42c05a2dca15f1426e975dadc1418ed907ada1040a26d9a5797f82078c3
+    known-answer-body-iso-8859-1-is-latin1                       b0b9ac3a465223fa3d9db89a4b0d4ed9540976bd0f70996d754e0e15d1b09592
+    known-answer-body-json-rfc8785                               c0e545042500698ea24f9c9b3184a5c6b3c88c92819d8c14ffc5b14df1f658b5
+    known-answer-query-bare-name-stays-bare                      edf4a9811431e1858ade999f9af5b5da6958386a917213824ffc555dbbdfc831
+    known-answer-query-decode-then-encode                        3497a3b0a59db322f29b05536bfa95f312dd0b1192bd43880f997f7d6da8ba57
+    known-answer-query-invalid-utf8-stays-octets                 535f89d04cc06584c45b7e3733ca0f7c8327a3cc3ce5f5fec45fc0598bbcd1fa
+    known-answer-query-plus-stays-plus                           901af16908e09c8c50764081b0c5e3a86f5e51decc600013e7490668b700afc4
+    known-answer-query-repeated-keys-keep-order                  c24d35cdddb9845d67a59fd29db354e7e94da7b340bf65312e9295fae7878495
+    known-answer-query-semicolon-is-not-a-separator              8bc6c6b4941af439d8868066d2291fbcc656f263a8e0dd1dbca52665085393aa
+    known-answer-query-uppercase-hex-and-arrival-order           511f2d8589f32ef7bcf20d6ad9fdcd458581c4c39d9d5e4c5bea23534af9e75f
+    extra/known-answer-body-charset-name-is-case-insensitive     f9ec22ba7e93546692deca1aaf4d912c7b5d347386b269759ed347674f5aa6b0
+    extra/known-answer-body-content-encodings-reversed-in-order  c8297bb4b7100abcac49ba5f4c55b233deb6bcf6c27ef67efd656cab0de114f7
+    extra/known-answer-body-deflate-then-rfc8785                 4bb15b1d5441ec7749eb6accc5b65f21bde2a4f7c9a892dbde1bd6909f41609c
+    extra/known-answer-body-plus-json-media-type-is-json         2f960b36117ef33da13583d86c1178149a2b1b96f34bb1ebcebd087c5ffa1392
